@@ -1,0 +1,481 @@
+/* ═══════════════════════════════════════════════════════════════
+   VENTANAS OPERATIVAS — Estilos
+   Torre de Control Logística · ERP NAL v9
+   Se carga DESPUÉS de los estilos globales, no los sobreescribe.
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ── Variables de color (heredan el tema oscuro de la app) ─────── */
+:root {
+  --vn-ok:       #10b981;
+  --vn-riesgo:   #f59e0b;
+  --vn-retraso:  #ef4444;
+  --vn-vacio:    #1e293b;
+  --vn-bg:       #0a1628;
+  --vn-border:   #1e293b;
+  --vn-text:     #f1f5f9;
+  --vn-muted:    #475569;
+  --vn-header:   #08111f;
+}
+
+/* ── Planner grid ──────────────────────────────────────────────── */
+.vn-planner-wrap {
+  overflow-x: auto;
+  border-radius: 10px;
+  border: 1px solid var(--vn-border);
+}
+
+.vn-planner-table {
+  border-collapse: collapse;
+  min-width: 100%;
+  font-size: 11px;
+}
+
+.vn-planner-table th,
+.vn-planner-table td {
+  border: 1px solid #0f1e33;
+}
+
+.vn-col-header {
+  background: var(--vn-header);
+  color: #3b82f6;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .8px;
+  padding: 8px 12px;
+  white-space: nowrap;
+  text-align: center;
+  position: sticky;
+  top: 0;
+  z-index: 3;
+}
+
+.vn-row-header {
+  background: var(--vn-header);
+  color: var(--vn-text);
+  font-size: 11px;
+  font-weight: 700;
+  padding: 8px 12px;
+  white-space: nowrap;
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  min-width: 140px;
+  border-right: 2px solid #1e3a5f;
+}
+
+.vn-row-sub {
+  color: #a78bfa;
+  font-size: 9px;
+  font-weight: 400;
+  display: block;
+  margin-top: 2px;
+}
+
+.vn-cell-empty {
+  background: #08111f;
+  border-radius: 6px;
+  padding: 20px 8px;
+  text-align: center;
+  color: #1e293b;
+  font-size: 18px;
+}
+
+.vn-cell-td {
+  padding: 5px;
+  vertical-align: top;
+  min-width: 140px;
+  background: #060d1a;
+}
+
+/* ── Tarjeta de ventana ─────────────────────────────────────────── */
+.vn-card {
+  border-radius: 8px;
+  padding: 9px 10px;
+  cursor: pointer;
+  position: relative;
+  transition: transform .12s, box-shadow .12s;
+  margin-bottom: 4px;
+  border-width: 2px;
+  border-style: solid;
+}
+
+.vn-card:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 16px rgba(0,0,0,.4);
+}
+
+.vn-card:active { transform: scale(.98); }
+
+.vn-card-ok      { background: rgba(16,185,129,.12); border-color: rgba(16,185,129,.5); }
+.vn-card-riesgo  { background: rgba(245,158,11,.12); border-color: rgba(245,158,11,.5); }
+.vn-card-retraso { background: rgba(239,68,68,.12);  border-color: rgba(239,68,68,.5);  }
+.vn-card-vencida { background: rgba(239,68,68,.18);  border-color: #ef4444; }
+.vn-card-curso   { background: rgba(59,130,246,.12); border-color: rgba(59,130,246,.5); }
+.vn-card-vacio   { background: #0a1628;               border-color: #1e293b; }
+
+.vn-card-tracto {
+  font-family: monospace;
+  font-weight: 900;
+  font-size: 13px;
+  color: var(--vn-text);
+  line-height: 1;
+}
+
+.vn-card-caja {
+  font-family: monospace;
+  font-size: 9px;
+  color: #64748b;
+  margin-top: 1px;
+}
+
+.vn-card-cliente {
+  font-size: 9px;
+  color: #94a3b8;
+  margin-top: 3px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 120px;
+}
+
+.vn-card-status {
+  font-size: 9px;
+  font-weight: 700;
+  margin-top: 4px;
+}
+
+.vn-card-delta {
+  font-size: 8px;
+  color: var(--vn-muted);
+  margin-top: 1px;
+}
+
+.vn-card-coord {
+  font-size: 8px;
+  color: #334155;
+  margin-top: 2px;
+}
+
+.vn-inc-badge {
+  position: absolute;
+  top: 5px;
+  right: 6px;
+  font-size: 13px;
+  line-height: 1;
+  cursor: help;
+}
+
+/* ── KPI bar ────────────────────────────────────────────────────── */
+.vn-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+@media (max-width: 500px) {
+  .vn-kpi-grid { grid-template-columns: repeat(3, 1fr); }
+}
+
+.vn-kpi-card {
+  border-radius: 10px;
+  padding: 12px 8px;
+  text-align: center;
+  border-width: 1px;
+  border-style: solid;
+}
+
+.vn-kpi-icon  { font-size: 16px; line-height: 1; }
+.vn-kpi-val   { font-weight: 900; font-size: 22px; margin-top: 2px; line-height: 1; }
+.vn-kpi-label { font-size: 9px; text-transform: uppercase; color: #64748b; margin-top: 3px; letter-spacing: .5px; }
+
+/* ── Filtros ────────────────────────────────────────────────────── */
+.vn-filters {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
+.vn-select {
+  background: #0a1628;
+  border: 1px solid #1e293b;
+  border-radius: 8px;
+  padding: 7px 10px;
+  color: #f1f5f9;
+  font-size: 11px;
+  outline: none;
+  cursor: pointer;
+}
+
+.vn-select:focus { border-color: #3b82f6; }
+
+/* ── Sub-tabs ───────────────────────────────────────────────────── */
+.vn-subtabs {
+  display: flex;
+  gap: 4px;
+  border-bottom: 1px solid #0f1e33;
+  margin-bottom: 14px;
+}
+
+.vn-subtab {
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: #475569;
+  padding: 8px 14px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 400;
+  margin-bottom: -1px;
+  transition: color .15s;
+}
+
+.vn-subtab:hover { color: #94a3b8; }
+
+.vn-subtab.active {
+  color: #f1f5f9;
+  font-weight: 700;
+  border-bottom-color: #3b82f6;
+}
+
+/* ── Monitoreo tabla ─────────────────────────────────────────────── */
+.vn-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 11px;
+}
+
+.vn-table th {
+  text-align: left;
+  padding: 8px 10px;
+  color: #475569;
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: .6px;
+  border-bottom: 2px solid #1e293b;
+  white-space: nowrap;
+}
+
+.vn-table td {
+  padding: 8px 10px;
+  border-bottom: 1px solid #0d1626;
+}
+
+.vn-table tr:nth-child(even) td { background: #080e1c; }
+
+.vn-delta-ok     { color: #10b981; font-weight: 700; }
+.vn-delta-risk   { color: #f59e0b; font-weight: 700; }
+.vn-delta-late   { color: #ef4444; font-weight: 700; }
+.vn-delta-none   { color: #475569; }
+
+.vn-badge {
+  display: inline-block;
+  border-radius: 5px;
+  padding: 2px 7px;
+  font-size: 9px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+/* ── Edición inline ──────────────────────────────────────────────── */
+.vn-editable-cell {
+  position: relative;
+  cursor: text;
+}
+
+.vn-editable-cell:hover::after {
+  content: " ✏️";
+  font-size: 8px;
+  opacity: .5;
+}
+
+.vn-cell-input {
+  width: 100%;
+  background: #0f172a;
+  border: 1px solid #3b82f6;
+  border-radius: 5px;
+  padding: 4px 7px;
+  color: #f1f5f9;
+  font-size: 11px;
+  outline: none;
+}
+
+.vn-cell-select {
+  width: 100%;
+  background: #0f172a;
+  border: 1px solid #3b82f6;
+  border-radius: 5px;
+  padding: 4px 7px;
+  color: #f1f5f9;
+  font-size: 11px;
+  outline: none;
+}
+
+/* ── Timeline ────────────────────────────────────────────────────── */
+.vn-timeline-wrap {
+  overflow-x: auto;
+  padding-bottom: 8px;
+}
+
+.vn-timeline {
+  display: flex;
+  align-items: flex-start;
+}
+
+.vn-node {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 130px;
+  text-align: center;
+}
+
+.vn-node-circle {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  border-width: 3px;
+  border-style: solid;
+  flex-shrink: 0;
+}
+
+.vn-node-label {
+  font-size: 9px;
+  margin-top: 6px;
+  font-weight: 400;
+  color: #334155;
+}
+
+.vn-node-label.active  { color: #f1f5f9; font-weight: 700; }
+.vn-node-label.done    { color: #475569; }
+
+.vn-node-time-prog { font-size: 8px; color: #475569; margin-top: 2px; }
+.vn-node-time-real { font-size: 8px; font-weight: 700; margin-top: 1px; }
+
+.vn-connector {
+  flex: 1;
+  height: 3px;
+  min-width: 28px;
+  position: relative;
+  top: 20px;
+  flex-shrink: 0;
+  border-radius: 2px;
+}
+
+/* ── Modal incidencias ───────────────────────────────────────────── */
+.vn-inc-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.vn-inc-item {
+  background: rgba(245,158,11,.1);
+  border: 1px solid rgba(245,158,11,.3);
+  border-radius: 7px;
+  padding: 8px 10px;
+  font-size: 10px;
+}
+
+.vn-inc-tipo    { color: #f59e0b; font-weight: 700; }
+.vn-inc-min     { color: #64748b; margin-left: 8px; }
+.vn-inc-comment { color: #94a3b8; margin-top: 3px; }
+
+.vn-inc-form {
+  background: #0a1628;
+  border-radius: 8px;
+  padding: 10px;
+  margin-top: 8px;
+}
+
+.vn-inc-form-title {
+  color: #64748b;
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: .6px;
+  margin-bottom: 8px;
+}
+
+.vn-inc-form-row {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+
+.vn-inc-form-actions {
+  display: flex;
+  gap: 6px;
+}
+
+/* ── Animaciones ──────────────────────────────────────────────────── */
+@keyframes vn-pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: .6; }
+}
+
+.vn-pulse { animation: vn-pulse 2s infinite; }
+
+@keyframes vn-fadeIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.vn-fade-in { animation: vn-fadeIn .2s ease; }
+
+/* ── Botón seguimiento ───────────────────────────────────────────── */
+.vn-seg-btn {
+  border-radius: 5px;
+  padding: 3px 9px;
+  font-size: 9px;
+  font-weight: 700;
+  cursor: pointer;
+  border-width: 1px;
+  border-style: solid;
+  white-space: nowrap;
+  transition: all .15s;
+}
+
+.vn-seg-btn.done {
+  background: rgba(16,185,129,.15);
+  border-color: rgba(16,185,129,.5);
+  color: #10b981;
+}
+
+.vn-seg-btn.pending {
+  background: #1e293b;
+  border-color: #334155;
+  color: #64748b;
+}
+
+/* ── Saving indicator ─────────────────────────────────────────────── */
+.vn-saving {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: #f59e0b;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.vn-saving::before {
+  content: '';
+  width: 8px;
+  height: 8px;
+  border: 2px solid #f59e0b;
+  border-top-color: transparent;
+  border-radius: 50%;
+  display: inline-block;
+  animation: vn-spin .7s linear infinite;
+}
+
+@keyframes vn-spin {
+  to { transform: rotate(360deg); }
+}

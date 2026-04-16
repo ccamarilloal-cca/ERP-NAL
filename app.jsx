@@ -12,10 +12,10 @@ const TODO_KEY    = "nal_todo_v10";
 const URG_KEY     = "nal_urg_v10";
 const VENTA_DIA_KEY = "nal_venta_dias_v10";
 
-const ld = () => { try{const r=localStorage.getItem(STORAGE_KEY);return r?JSON.parse(r):null;}catch{return null;} };
-const sd = (d) => { try{localStorage.setItem(STORAGE_KEY,JSON.stringify(d));}catch{} };
-const lsGet = (k) => { try{const r=localStorage.getItem(k);return r?JSON.parse(r):null;}catch{return null;} };
-const lsSet = (k,v) => { try{localStorage.setItem(k,JSON.stringify(v));}catch{} };
+const ld = () => { try{const r=localStorage.getItem(STORAGE_KEY);return r?JSON.parse(r):null;}catch(e){return null;} };
+const sd = (d) => { try{localStorage.setItem(STORAGE_KEY,JSON.stringify(d));}catch(e){} };
+const lsGet = (k) => { try{const r=localStorage.getItem(k);return r?JSON.parse(r):null;}catch(e){return null;} };
+const lsSet = (k,v) => { try{localStorage.setItem(k,JSON.stringify(v));}catch(e){} };
 const initData = () => {
   const s=ld();
   if(s&&s.v===10) return s;
@@ -175,7 +175,6 @@ const Inicio=({data,setTab})=>{
   const [urgModal,setUrgModal]=useState(false);
   const [urgInput,setUrgInput]=useState({desc:"",prioridad:"Alta"});
   const [subModal,setSubModal]=useState(null); // {title, rows}
-  const openSubModal=(obj)=>{ setBloqueModal(null); setSubModal(obj); };
   // Venta por día
   const [ventaDias,setVentaDias]=useState(()=>lsGet(VENTA_DIA_KEY)||{});
   const [editVenta,setEditVenta]=useState(null);
@@ -268,6 +267,7 @@ const Inicio=({data,setTab})=>{
   const cycleUrg=(id)=>setUrgs(p=>p.map(u=>u.id===id?{...u,estado:u.estado==="Abierta"?"En atención":u.estado==="En atención"?"Cerrada":"Abierta"}:u));
 
   const [bloqueModal,setBloqueModal]=useState(null);
+  const openSubModal=(obj)=>{ setBloqueModal(null); setSubModal(obj); };
   const BloqueResumen=({id,icon,label,valor,col,children,badge,title})=>{
     return(
       <>
@@ -435,8 +435,7 @@ const Inicio=({data,setTab})=>{
                   ?<input autoFocus type="number" value={editVentaVal}
                     onChange={e=>setEditVentaVal(e.target.value)}
                     onBlur={()=>{
-                      const numVal = editVentaVal===="" ? 0 : parseFloat(editVentaVal)||0;
-                      setVentaDias(p=>({...p,[clave]:{val:numVal,auto:false,ts:"manual"}}));
+                      setVentaDias(p=>({...p,[clave]:{val:editVentaVal===""?0:(parseFloat(editVentaVal)||0),auto:false,ts:"manual"}}));
                       setEditVenta(null);setEditVentaVal("");
                     }}
                     onKeyDown={e=>e.key==="Enter"&&e.target.blur()}
@@ -571,7 +570,7 @@ const Inicio=({data,setTab})=>{
               title:"✅ Liberadas esta semana",
               rows:Object.entries(
                 lsGet("nal_mtto_estados_v10")||{}
-              ).filter(([,v])=>v.estado==="Liberada")
+              ).filter(([k,v])=>v.estado==="Liberada")
                .map(([u,v])=>({unidad:u,estadoGestion:v.estado,nuevaFecha:v.nuevaFecha||"—",comentarios:v.comentario||"—"}))
             });}} style={{background:"#10b98115",border:"1px solid #10b98130",borderRadius:7,padding:"10px",color:"#10b981",fontSize:12,cursor:"pointer",fontWeight:700}}>
               ✅ Liberadas
@@ -1301,7 +1300,7 @@ const Mantenimiento=({data,setData})=>{
   const [selTab,setSelTab]=useState("CP");
   const MTTO_LS_KEY="nal_mtto_estados_v10";
   const [mttoEstados,setMttoEstados]=useState(()=>{
-    try{const r=localStorage.getItem("nal_mtto_estados_v10");return r?JSON.parse(r):{};}catch{return{};}
+    try{const r=localStorage.getItem("nal_mtto_estados_v10");return r?JSON.parse(r):{};}catch(e){return{};}
   });
   const [modalGest,setModalGest]=useState(null);
   const [formGest,setFormGest]=useState({});
@@ -1334,7 +1333,7 @@ const Mantenimiento=({data,setData})=>{
 
   // Persist mttoEstados to localStorage on every change
   useEffect(()=>{
-    try{localStorage.setItem("nal_mtto_estados_v10",JSON.stringify(mttoEstados));}catch{}
+    try{localStorage.setItem("nal_mtto_estados_v10",JSON.stringify(mttoEstados));}catch(e){}
   },[mttoEstados]);
 
   const guardarGestion=async()=>{

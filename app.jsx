@@ -8,9 +8,10 @@ const { useState, useEffect, useRef, useCallback } = React;
 const SHEETS_URL  = window.SHEETS_URL || "PEGA_TU_URL_AQUI";
 const USAR_SHEETS = SHEETS_URL !== "PEGA_TU_URL_AQUI";
 const STORAGE_KEY = "nal_erp_v10";
-const TODO_KEY    = "nal_todo_v10";
-const URG_KEY     = "nal_urg_v10";
+const TODO_KEY      = "nal_todo_v10";
+const URG_KEY       = "nal_urg_v10";
 const VENTA_DIA_KEY = "nal_venta_dias_v10";
+const ALERTAS_LS    = "nal_alertas_v10";
 
 const ld = () => { try{const r=localStorage.getItem(STORAGE_KEY);return r?JSON.parse(r):null;}catch(e){return null;} };
 const sd = (d) => { try{localStorage.setItem(STORAGE_KEY,JSON.stringify(d));}catch(e){} };
@@ -161,6 +162,143 @@ const HeaderReloj=({lastSync,autoInterval})=>{
 };
 
 
+// ── PIN PARA PENDIENTES ──────────────────────────────────────────────────────
+const TODO_PIN_KEY = "nal_todo_pin_v10";
+
+const PinGate=({onUnlock})=>{
+  const [pin,setPin]=useState("");
+  const [error,setError]=useState("");
+  const savedPin=lsGet(TODO_PIN_KEY);
+  const handleSubmit=()=>{
+    if(!savedPin){
+      if(pin.length!==4){setError("El PIN debe ser 4 dígitos");return;}
+      lsSet(TODO_PIN_KEY,pin);onUnlock();
+    } else {
+      if(pin===savedPin) onUnlock();
+      else{setError("PIN incorrecto");setPin("");}
+    }
+  };
+  return(
+    <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:16,padding:"24px 16px"}}>
+      <div style={{fontSize:32}}>🔒</div>
+      <div style={{color:"#f1f5f9",fontWeight:700,fontSize:15,textAlign:"center"}}>
+        {!savedPin?"Configura tu PIN (4 dígitos)":"Ingresa tu PIN"}
+      </div>
+      {!savedPin&&<div style={{color:"#64748b",fontSize:12,textAlign:"center"}}>Solo tú podrás ver tus pendientes</div>}
+      <input type="password" inputMode="numeric" maxLength={4} value={pin}
+        onChange={e=>setPin(e.target.value.replace(/[^0-9]/g,"").slice(0,4))}
+        onKeyDown={e=>e.key==="Enter"&&handleSubmit()}
+        placeholder="● ● ● ●"
+        style={{background:"#0f172a",border:"2px solid #1e293b",borderRadius:10,
+          padding:"14px 20px",color:"#f1f5f9",fontSize:24,textAlign:"center",
+          letterSpacing:8,outline:"none",width:160}}
+        autoFocus/>
+      {error&&<div style={{color:"#ef4444",fontSize:12}}>{error}</div>}
+      <button onClick={handleSubmit}
+        style={{background:"#3b82f620",border:"1px solid #3b82f660",borderRadius:9,
+          padding:"10px 28px",color:"#3b82f6",fontWeight:700,fontSize:14,cursor:"pointer"}}>
+        {!savedPin?"Guardar PIN":"Entrar"}
+      </button>
+      {savedPin&&<button onClick={()=>{lsSet(TODO_PIN_KEY,null);window.location.reload();}}
+        style={{background:"none",border:"none",color:"#334155",fontSize:10,cursor:"pointer"}}>
+        Olvidé mi PIN
+      </button>}
+    </div>
+  );
+};
+
+const TODO_ESTADOS=[
+  {k:"Abierto",col:"#ef4444",ic:"🔴"},
+  {k:"En proceso",col:"#f59e0b",ic:"🟡"},
+  {k:"Cerrado",col:"#10b981",ic:"🟢"},
+];
+
+const TodoTabla=({todos,setTodos,addTodo,todoInput,setTodoInput,
+  editTodoId,setEditTodoId,editTodoVal,setEditTodoVal,
+  saveEditTodo,delTodo,cycleTodo,updateSeg,updateComent})=>{
+  const [editComId,setEditComId]=useState(null);
+  const [editComVal,setEditComVal]=useState("");
+  const saveEditCom=(id)=>{updateComent(id,editComVal);setEditComId(null);setEditComVal("");};
+  return(
+    <div style={{display:"flex",flexDirection:"column",gap:10}}>
+      <div style={{display:"flex",gap:8}}>
+        <input value={todoInput} onChange={e=>setTodoInput(e.target.value)}
+          placeholder="+ Nuevo pendiente..." onKeyDown={e=>e.key==="Enter"&&addTodo()}
+          style={{flex:1,background:"#0f172a",border:"1px solid #1e293b",borderRadius:8,
+            padding:"10px 14px",color:"#f1f5f9",fontSize:14,outline:"none"}}/>
+        <button onClick={addTodo}
+          style={{background:"#3b82f620",border:"1px solid #3b82f660",borderRadius:8,
+            padding:"10px 18px",color:"#3b82f6",fontWeight:700,cursor:"pointer",fontSize:16}}>+</button>
+      </div>
+      {todos.length===0&&<div style={{color:"#334155",textAlign:"center",padding:24,fontSize:14}}>Sin pendientes aún</div>}
+      {todos.length>0&&<div style={{overflowX:"auto"}}>
+        <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
+          <thead><tr style={{background:"#0a1628",borderBottom:"2px solid #1e293b"}}>
+            <th style={{padding:"8px 6px",color:"#475569",fontSize:10,textAlign:"center",width:28}}>#</th>
+            <th style={{padding:"8px 10px",color:"#475569",fontSize:10,textAlign:"left"}}>📋 Pendiente</th>
+            <th style={{padding:"8px 10px",color:"#475569",fontSize:10,textAlign:"left",minWidth:140}}>💬 Comentario</th>
+            <th style={{padding:"8px 8px",color:"#475569",fontSize:10,textAlign:"center",width:105}}>📅 Seguimiento</th>
+            <th style={{padding:"8px 8px",color:"#475569",fontSize:10,textAlign:"center",width:100}}>Estado</th>
+            <th style={{width:28}}></th>
+          </tr></thead>
+          <tbody>{todos.map((t,i)=>{
+            const est=TODO_ESTADOS.find(e=>e.k===t.estado)||TODO_ESTADOS[0];
+            const cerrado=t.estado==="Cerrado";
+            return(
+              <tr key={t.id} style={{borderBottom:"1px solid #0d1626",
+                background:cerrado?"#060d1a":i%2===0?"#080e1c":"#0a1628",opacity:cerrado?0.5:1}}>
+                <td style={{padding:"8px 6px",color:"#334155",textAlign:"center",fontSize:11}}>{i+1}</td>
+                <td style={{padding:"6px 8px"}}>
+                  {editTodoId===t.id
+                    ?<input autoFocus value={editTodoVal} onChange={e=>setEditTodoVal(e.target.value)}
+                      onBlur={()=>saveEditTodo(t.id)} onKeyDown={e=>e.key==="Enter"&&saveEditTodo(t.id)}
+                      style={{width:"100%",background:"#0f172a",border:"2px solid #3b82f6",borderRadius:6,
+                        padding:"6px 8px",color:"#f1f5f9",fontSize:13,outline:"none"}}/>
+                    :<div onClick={()=>{setEditTodoId(t.id);setEditTodoVal(t.texto);}}
+                      style={{color:"#f1f5f9",fontSize:13,cursor:"text",minHeight:24,
+                        textDecoration:cerrado?"line-through":"none",
+                        borderBottom:"1px dashed #1e293b",padding:"4px 0"}}>
+                      {t.texto||<span style={{color:"#334155"}}>Toca para escribir...</span>}
+                    </div>}
+                </td>
+                <td style={{padding:"6px 8px"}}>
+                  {editComId===t.id
+                    ?<input autoFocus value={editComVal} onChange={e=>setEditComVal(e.target.value)}
+                      onBlur={()=>saveEditCom(t.id)} onKeyDown={e=>e.key==="Enter"&&saveEditCom(t.id)}
+                      style={{width:"100%",background:"#0f172a",border:"2px solid #f59e0b",borderRadius:6,
+                        padding:"6px 8px",color:"#f1f5f9",fontSize:13,outline:"none"}}/>
+                    :<div onClick={()=>{setEditComId(t.id);setEditComVal(t.comentario||"");}}
+                      style={{color:"#94a3b8",fontSize:12,cursor:"text",minHeight:24,
+                        borderBottom:"1px dashed #1e293b",padding:"4px 0"}}>
+                      {t.comentario||<span style={{color:"#1e293b"}}>+ comentario</span>}
+                    </div>}
+                </td>
+                <td style={{padding:"6px 6px",textAlign:"center"}}>
+                  <input type="date" value={t.seguimiento||""} onChange={e=>updateSeg(t.id,e.target.value)}
+                    style={{background:"#0f172a",border:"1px solid #1e293b",borderRadius:5,
+                      padding:"3px 4px",color:"#94a3b8",fontSize:10,outline:"none",width:"100%"}}/>
+                </td>
+                <td style={{padding:"6px 6px",textAlign:"center"}}>
+                  <button onClick={()=>cycleTodo(t.id)}
+                    style={{background:est.col+"20",border:"1px solid "+est.col+"50",borderRadius:6,
+                      padding:"3px 8px",color:est.col,fontSize:10,cursor:"pointer",fontWeight:700}}>
+                    {est.ic} {est.k}
+                  </button>
+                </td>
+                <td style={{padding:"4px",textAlign:"center"}}>
+                  <button onClick={()=>delTodo(t.id)}
+                    style={{background:"none",border:"none",color:"#334155",cursor:"pointer",fontSize:16}}>×</button>
+                </td>
+              </tr>
+            );
+          })}</tbody>
+        </table>
+      </div>}
+      <div style={{color:"#334155",fontSize:10,textAlign:"center"}}>Toca cualquier celda para editar · Cerradas se eliminan cada martes</div>
+    </div>
+  );
+};
+
 // ── INICIO — Tablero Personal ─────────────────────────────────────────────────
 const Inicio=({data,setTab})=>{
   const res=data.resumen;
@@ -168,6 +306,7 @@ const Inicio=({data,setTab})=>{
   const [todos,setTodos]=useState(()=>lsGet(TODO_KEY)||[]);
   const [todoInput,setTodoInput]=useState("");
   const [todoModal,setTodoModal]=useState(false);
+  const [pinUnlocked,setPinUnlocked]=useState(false);
   const [editTodoId,setEditTodoId]=useState(null);
   const [editTodoVal,setEditTodoVal]=useState("");
   // Urgencias
@@ -183,10 +322,24 @@ const Inicio=({data,setTab})=>{
   const [abiertos,setAbiertos]=useState({});
   const toggle=(k)=>setAbiertos(p=>({...p,[k]:!p[k]}));
 
-  // Guardar todos en localStorage
+  // Guardar en localStorage (siempre)
   useEffect(()=>lsSet(TODO_KEY,todos),[todos]);
   useEffect(()=>lsSet(URG_KEY,urgs),[urgs]);
   useEffect(()=>lsSet(VENTA_DIA_KEY,ventaDias),[ventaDias]);
+
+  // Backup todos en Sheets
+  useEffect(()=>{
+    if(!USAR_SHEETS||todos.length===0) return;
+    const rows=todos.map(t=>({ID:String(t.id),Texto:t.texto,Fecha:t.fecha,Seguimiento:t.seguimiento,Estado:t.estado}));
+    apiPost("PENDIENTES",rows).catch(()=>{});
+  },[todos]);
+
+  // Backup urgencias en Sheets
+  useEffect(()=>{
+    if(!USAR_SHEETS||urgs.length===0) return;
+    const rows=urgs.map(u=>({ID:String(u.id),Descripcion:u.desc,Prioridad:u.prioridad,Estado:u.estado,Hora:u.hora}));
+    apiPost("URGENCIAS",rows).catch(()=>{});
+  },[urgs]);
 
   // Auto-guardar venta del día actual desde el sync
   useEffect(()=>{
@@ -196,7 +349,13 @@ const Inicio=({data,setTab})=>{
     const diaClave=DIAS_CORTO[diaSem];
     const ventaHoy=res.venta?.semana?.TOTAL||0;
     if(ventaHoy>0){
-      setVentaDias(p=>({...p,[diaClave]:{val:ventaHoy,auto:true,ts:new Date().toLocaleTimeString("es-MX",{hour:"2-digit",minute:"2-digit"})}}));
+      setVentaDias(p=>{
+        const existing=p[diaClave];
+        // Solo actualizar si el nuevo valor es mayor (no sobreescribir con 0 o menos)
+        if(existing&&!existing.auto&&(existing.val||0)>0) return p; // no sobreescribir manual
+        if(existing&&existing.auto&&(existing.val||0)>=ventaHoy) return p; // no bajar valor
+        return {...p,[diaClave]:{val:ventaHoy,auto:true,ts:new Date().toLocaleTimeString("es-MX",{hour:"2-digit",minute:"2-digit"})}};
+      });
     }
   },[res]);
 
@@ -257,6 +416,7 @@ const Inicio=({data,setTab})=>{
   };
   const delTodo=(id)=>setTodos(p=>p.filter(t=>t.id!==id));
   const updateSeg=(id,val)=>setTodos(p=>p.map(t=>t.id===id?{...t,seguimiento:val}:t));
+  const updateComent=(id,val)=>setTodos(p=>p.map(t=>t.id===id?{...t,comentario:val}:t));
 
   // Urgencias helpers
   const addUrg=()=>{
@@ -360,59 +520,18 @@ const Inicio=({data,setTab})=>{
         </Modal>
       )}
 
-      {/* Modal To-Do */}
+      {/* Modal To-Do — tabla con PIN */}
       {todoModal&&(
-        <Modal title="✅ Mis pendientes del día" onClose={()=>setTodoModal(false)} wide>
-          <div style={{display:"flex",flexDirection:"column",gap:14}}>
-            <div style={{display:"flex",gap:10}}>
-              <input value={todoInput} onChange={e=>setTodoInput(e.target.value)}
-                placeholder="Agregar pendiente..." onKeyDown={e=>e.key==="Enter"&&addTodo()}
-                style={{flex:1,background:"#0f172a",border:"1px solid #1e293b",borderRadius:9,padding:"12px 14px",color:"#f1f5f9",fontSize:15,outline:"none"}}/>
-              <button onClick={addTodo} style={{background:"#3b82f620",border:"1px solid #3b82f640",borderRadius:9,padding:"12px 20px",color:"#3b82f6",fontWeight:700,cursor:"pointer",fontSize:14}}>+ Agregar</button>
-            </div>
-            <div style={{color:"#334155",fontSize:11,textAlign:"center"}}>Las tareas cerradas se eliminan automáticamente cada martes</div>
-            {todos.length===0&&<div style={{color:"#334155",textAlign:"center",padding:30,fontSize:15}}>Sin pendientes registrados</div>}
-            {todos.map((t,i)=>(
-              <div key={t.id} style={{background:t.estado==="Cerrado"?"#080e1c":"#0d1626",border:`2px solid ${t.estado==="Cerrado"?"#10b98140":t.estado==="En proceso"?"#f59e0b50":"#3b82f650"}`,borderRadius:10,padding:"14px 18px",opacity:t.estado==="Cerrado"?0.5:1}}>
-                <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:10}}>
-                  <div style={{flex:1}}>
-                    {editTodoId===t.id
-                      ?<input autoFocus value={editTodoVal} onChange={e=>setEditTodoVal(e.target.value)}
-                        onBlur={()=>saveEditTodo(t.id)} onKeyDown={e=>e.key==="Enter"&&saveEditTodo(t.id)}
-                        style={{width:"100%",background:"#0f172a",border:"2px solid #3b82f6",borderRadius:7,
-                          padding:"8px 12px",color:"#f1f5f9",fontSize:15,outline:"none",marginBottom:8}}/>
-                      :<div onClick={()=>{setEditTodoId(t.id);setEditTodoVal(t.texto);}}
-                        title="Clic para editar"
-                        style={{color:"#f1f5f9",fontSize:15,fontWeight:600,marginBottom:8,
-                          textDecoration:t.estado==="Cerrado"?"line-through":"none",lineHeight:1.4,
-                          cursor:"text",borderBottom:"1px dashed #1e293b",paddingBottom:2}}>
-                        {i+1}. {t.texto} <span style={{color:"#334155",fontSize:11}}>✏️</span>
-                      </div>
-                    }
-                    <div style={{display:"flex",gap:14,alignItems:"center",flexWrap:"wrap"}}>
-                      <span style={{color:"#334155",fontSize:11}}>📅 Creado: {t.fecha}</span>
-                      <div style={{display:"flex",alignItems:"center",gap:6}}>
-                        <span style={{color:"#475569",fontSize:11}}>🔔 Seguimiento:</span>
-                        <input type="date" value={t.seguimiento} onChange={e=>updateSeg(t.id,e.target.value)}
-                          style={{background:"#0f172a",border:"1px solid #1e293b",borderRadius:6,padding:"4px 10px",color:"#94a3b8",fontSize:12,outline:"none"}}/>
-                      </div>
-                    </div>
-                  </div>
-                  <div style={{display:"flex",gap:8,alignItems:"center",flexShrink:0}}>
-                    <button onClick={()=>cycleTodo(t.id)}
-                      style={{background:t.estado==="Cerrado"?"#10b98125":t.estado==="En proceso"?"#f59e0b25":"#3b82f625",
-                        border:`1px solid ${t.estado==="Cerrado"?"#10b98150":t.estado==="En proceso"?"#f59e0b50":"#3b82f650"}`,
-                        borderRadius:8,padding:"8px 16px",
-                        color:t.estado==="Cerrado"?"#10b981":t.estado==="En proceso"?"#f59e0b":"#3b82f6",
-                        fontSize:13,cursor:"pointer",fontWeight:700,whiteSpace:"nowrap"}}>
-                      {t.estado==="Cerrado"?"✅ Cerrado":t.estado==="En proceso"?"🔄 En proceso":"⬜ Abierto"}
-                    </button>
-                    <button onClick={()=>delTodo(t.id)} style={{background:"none",border:"none",color:"#334155",cursor:"pointer",fontSize:18,padding:"4px 8px"}}>×</button>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
+        <Modal title="✅ Mis pendientes" onClose={()=>{setTodoModal(false);setPinUnlocked(false);}} wide>
+          {!pinUnlocked
+            ?<PinGate onUnlock={()=>setPinUnlocked(true)}/>
+            :<TodoTabla todos={todos} setTodos={setTodos} addTodo={addTodo}
+                todoInput={todoInput} setTodoInput={setTodoInput}
+                editTodoId={editTodoId} setEditTodoId={setEditTodoId}
+                editTodoVal={editTodoVal} setEditTodoVal={setEditTodoVal}
+                saveEditTodo={saveEditTodo} delTodo={delTodo} cycleTodo={cycleTodo}
+                updateSeg={updateSeg} updateComent={updateComent}/>
+          }
         </Modal>
       )}
 
@@ -454,7 +573,7 @@ const Inicio=({data,setTab})=>{
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:8,padding:"10px 14px",background:"#060d1a",borderRadius:9,border:"1px solid #1e3a5f"}}>
           <span style={{color:"#475569",fontSize:11,textTransform:"uppercase",letterSpacing:.8}}>📊 Total semana acumulado</span>
           <span style={{color:"#10b981",fontWeight:900,fontSize:20}}>
-            {fmt$(Object.values(ventaDias).reduce((s,d)=>s+(typeof d?.val==="number"?d.val:0),0))}
+            {fmt$(Object.values(ventaDias).reduce((s,d)=>s+(Number(d?.val)||0),0))}
           </span>
         </div>
         <div style={{color:"#334155",fontSize:9,textAlign:"center"}}>Toca cualquier día para editar · El día actual se actualiza automáticamente</div>
@@ -932,24 +1051,63 @@ const Alertas=({data,setData})=>{
   const [comentInput,setComentInput]=useState("");
   const [saving,setSaving]=useState(false);
 
+  // Load from localStorage first (instant, offline)
+  useEffect(()=>{
+    const saved=lsGet(ALERTAS_LS);
+    if(saved&&Object.keys(saved).length>0) setEstadoAlertas(saved);
+  },[]);
+
+  // Merge Sheets data with local — Sheets wins for newer timestamps
   useEffect(()=>{
     const rows=data.alertasList||[];
     if(!rows.length) return;
-    const mapa={};
-    rows.forEach(r=>{const id=r["ID"]||r["Id"]||r["id"]||"";if(!id)return;mapa[id]={estado:r["Estado"]||"",comentario:r["Comentario"]||"",ts:r["Fecha"]||""};});
-    setEstadoAlertas(mapa);
+    const sheetMap={};
+    rows.forEach(r=>{
+      const id=r["ID"]||r["Id"]||r["id"]||"";
+      if(!id) return;
+      sheetMap[id]={estado:r["Estado"]||"",comentario:r["Comentario"]||"",ts:r["Fecha"]||""};
+    });
+    setEstadoAlertas(prev=>{
+      // Merge: for each key, keep whichever has newer timestamp
+      const merged={...prev};
+      Object.keys(sheetMap).forEach(id=>{
+        const local=prev[id];
+        const sheet=sheetMap[id];
+        if(!local) { merged[id]=sheet; return; }
+        // Compare timestamps
+        const localTs=new Date(local.ts||0).getTime();
+        const sheetTs=new Date(sheet.ts||0).getTime();
+        if(sheetTs>=localTs) merged[id]=sheet; // sheet is newer or same
+      });
+      return merged;
+    });
   },[data.alertasList]);
 
+  // Persist estadoAlertas to localStorage on every change
+  useEffect(()=>{
+    if(Object.keys(estadoAlertas).length>0) lsSet(ALERTAS_LS,estadoAlertas);
+  },[estadoAlertas]);;
+
   const guardarEstado=async(idx,alerta,nuevoEstado,comentario)=>{
-    const id=`${alerta.tipo}_${alerta.unidad}_${alerta.fecha}`.replace(/\s/g,"_");
-    const newMap={...estadoAlertas,[id]:{estado:nuevoEstado,comentario,ts:new Date().toISOString()}};
+    // Use stable ID based on tipo+unidad only (no date - avoids timezone mismatch)
+    const id=`${alerta.tipo}_${alerta.unidad}`.replace(/[\s/]/g,"_");
+    const ts=new Date().toISOString();
+    const newEntry={estado:nuevoEstado,comentario,ts};
+    const newMap={...estadoAlertas,[id]:newEntry};
     setEstadoAlertas(newMap);
+    // Save to localStorage immediately
+    lsSet(ALERTAS_LS,newMap);
     if(!USAR_SHEETS) return;
     setSaving(true);
-    const todasAlertas=Object.entries(newMap).map(([k,v])=>({ID:k,Estado:v.estado,Comentario:v.comentario,Fecha:v.ts}));
+    // Use append for single row - doesn't wipe other device's entries
+    const singleRow=[{ID:id,Estado:nuevoEstado,Comentario:comentario,Fecha:ts}];
     try{
-      await apiPost("ALERTAS",todasAlertas);
-      setData(prev=>({...prev,alertasList:todasAlertas}));
+      await fetch(SHEETS_URL,{method:"POST",mode:"no-cors",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({tab:"ALERTAS",action:"append",rows:singleRow})});
+      // Also update full list for local state
+      const updList=[...((data.alertasList||[]).filter(r=>(r["ID"]||r["id"])!==id)),{ID:id,Estado:nuevoEstado,Comentario:comentario,Fecha:ts}];
+      setData(prev=>({...prev,alertasList:updList}));
     }catch(e){console.error(e);}
     setSaving(false);
   };
@@ -1158,6 +1316,7 @@ const CIRC_VISUAL = {
 
 const Tracker=({data})=>{
   const res=data.resumen;
+  const [comModal,setComModal]=useState(null);
   const [q,setQ]=useState(""); const [entregados,setEntregados]=useState({});
   if(!res) return <div style={{color:"#475569",textAlign:"center",padding:40}}>Sincroniza para cargar datos</div>;
   const grupos=res.flota?.grupos||{};
@@ -1165,6 +1324,28 @@ const Tracker=({data})=>{
   const lista=enRuta.filter(e=>{const tx=q.toLowerCase();return !q||(e.unidad+e.operador+e.circuito+e.ruta+e.coordinador).toLowerCase().includes(tx);});
   return(
     <div style={{display:"flex",flexDirection:"column",gap:14}}>
+      {comModal&&<Modal title={`💬 ${comModal.unidad} — ${comModal.operador||"Sin operador"}`} onClose={()=>setComModal(null)}>
+        <div style={{display:"flex",flexDirection:"column",gap:12}}>
+          {comModal.comentarios&&<div style={{background:"#0d1626",borderRadius:8,padding:"12px 14px"}}>
+            <div style={{color:"#475569",fontSize:10,textTransform:"uppercase",marginBottom:6}}>📍 Ubicación / Comentarios</div>
+            <div style={{color:"#f1f5f9",fontSize:14,lineHeight:1.6}}>{comModal.comentarios}</div>
+          </div>}
+          {comModal.ruta&&<div style={{background:"#0d1626",borderRadius:8,padding:"10px 12px"}}>
+            <div style={{color:"#475569",fontSize:10,textTransform:"uppercase",marginBottom:4}}>🛣️ Ruta</div>
+            <div style={{color:"#94a3b8",fontSize:13}}>{comModal.ruta}</div>
+          </div>}
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+            {comModal.circuito&&<div style={{background:"#0d1626",borderRadius:7,padding:"8px 10px"}}>
+              <div style={{color:"#475569",fontSize:9,textTransform:"uppercase"}}>Circuito</div>
+              <div style={{color:"#a78bfa",fontWeight:700,fontSize:13}}>{comModal.circuito}</div>
+            </div>}
+            {comModal.cliente&&<div style={{background:"#0d1626",borderRadius:7,padding:"8px 10px"}}>
+              <div style={{color:"#475569",fontSize:9,textTransform:"uppercase"}}>Cliente</div>
+              <div style={{color:"#94a3b8",fontSize:13}}>{comModal.cliente}</div>
+            </div>}
+          </div>
+        </div>
+      </Modal>}
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:8}}>
         <div style={{color:"#475569",fontSize:11,textTransform:"uppercase",letterSpacing:1.5}}>🛣️ Tracker — {enRuta.length} Operando · {res.flota?.fecha}</div>
         <input placeholder="🔍 Filtrar..." value={q} onChange={e=>setQ(e.target.value)} style={{background:"#0a1628",border:"1px solid #1e293b",borderRadius:8,padding:"7px 12px",color:"#f1f5f9",fontSize:12,outline:"none",minWidth:160}}/>
@@ -1216,8 +1397,16 @@ const Tracker=({data})=>{
               </div>
             </div>
             <div style={{background:"#060d1a",borderRadius:7,padding:"6px 12px",marginTop:4,display:"flex",justifyContent:"space-between",alignItems:"center",gap:6,flexWrap:"wrap"}}>
-              {e.comentarios&&<span style={{color:"#94a3b8",fontSize:9}}>{e.comentarios.slice(0,70)}</span>}
-              <span style={{color:cfg.color,fontSize:10,fontWeight:700}}>➡️ {cfg.siguiente}</span>
+              <div style={{display:"flex",alignItems:"center",gap:6,flex:1}}>
+                {e.comentarios&&<span style={{color:"#94a3b8",fontSize:9,flex:1}}>{e.comentarios.slice(0,50)}{e.comentarios.length>50?"...":""}</span>}
+                {!e.comentarios&&e.ubicacion&&<span style={{color:"#475569",fontSize:9}}>📍 {e.ubicacion}</span>}
+                <button onClick={()=>setComModal(e)}
+                  style={{background:"#3b82f620",border:"1px solid #3b82f640",borderRadius:5,
+                    padding:"2px 8px",color:"#3b82f6",fontSize:10,cursor:"pointer",fontWeight:700,flexShrink:0}}>
+                  💬
+                </button>
+              </div>
+              <span style={{color:cfg.color,fontSize:10,fontWeight:700,flexShrink:0}}>➡️ {cfg.siguiente}</span>
             </div>
           </div>
         );
@@ -1486,13 +1675,11 @@ const Mantenimiento=({data,setData})=>{
       </div>
 
       {/* Liberadas button */}
-      {todasLiberadas.length>0&&(
-        <button onClick={()=>setLiberadasModal(true)}
-          style={{width:"100%",background:"#10b98115",border:"1px solid #10b98140",borderRadius:9,padding:"10px",color:"#10b981",fontSize:12,cursor:"pointer",fontWeight:700,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-          <span>✅ Liberadas esta semana: {todasLiberadas.length} unidades</span>
-          <span>↗ ver historial</span>
-        </button>
-      )}
+      <button onClick={()=>setLiberadasModal(true)}
+        style={{width:"100%",background:"#10b98115",border:"1px solid #10b98140",borderRadius:9,padding:"10px",color:"#10b981",fontSize:12,cursor:"pointer",fontWeight:700,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+        <span>✅ Liberadas esta semana{todasLiberadas.length>0?`: ${todasLiberadas.length} unidades`:""}</span>
+        <span>↗ ver historial</span>
+      </button>
 
       {/* Vista selector: Tabla | Triage */}
       <div style={{display:"flex",gap:4,borderBottom:"1px solid #0f1e33"}}>
@@ -1611,6 +1798,7 @@ const Cajas=({data,setData})=>{
   const [q,setQ]=useState(""); const [coordFil,setCoordFil]=useState(""); const [eFil,setEFil]=useState(""); const [pFil,setPFil]=useState("");
   const [editando,setEditando]=useState(null); const [form,setForm]=useState({});
   const [modalPatio,setModalPatio]=useState(null);
+  const [showLista,setShowLista]=useState(false);
   const lista2=(data.cajasList||[]).filter(c=>{const tx=q.toLowerCase();return(!q||(c.Caja+c.Cliente+c["Ciudad / Ubicación"]).toLowerCase().includes(tx))&&(!coordFil||String(c.Coordinador||"").toUpperCase().includes(coordFil))&&(!eFil||c.Estatus===eFil)&&(!pFil||c["Ciudad / Ubicación"]===pFil);});
   const resumen={};(data.cajasList||[]).forEach(c=>{resumen[c.Estatus]=(resumen[c.Estatus]||0)+1;});
   const guardar=()=>{const upd={...data,cajasList:(data.cajasList||[]).map(c=>c.Caja===editando?{...c,...form}:c)};setData(upd);sd(upd);setEditando(null);if(USAR_SHEETS)apiPost("Control_Cajas",upd.cajasList);};
@@ -1673,8 +1861,17 @@ const Cajas=({data,setData})=>{
           </div>
         </div>
       )}
+      {/* Toggle lista */}
+      <button onClick={()=>setShowLista(p=>!p)}
+        style={{width:"100%",background:"#0a1628",border:"1px solid #1e3a5f",borderRadius:9,
+          padding:"10px 16px",color:"#3b82f6",fontSize:12,cursor:"pointer",fontWeight:700,
+          display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+        <span>📋 Lista completa de cajas ({(data.cajasList||[]).length})</span>
+        <span>{showLista?"▲ Cerrar":"▼ Ver lista"}</span>
+      </button>
+      {showLista&&<div>
       {/* Búsqueda */}
-      <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+      <div style={{display:"flex",gap:8,flexWrap:"wrap",marginTop:8}}>
         <input placeholder="🔍 Buscar caja..." value={q} onChange={e=>setQ(e.target.value)} style={{flex:1,minWidth:180,background:"#0a1628",border:"1px solid #1e293b",borderRadius:8,padding:"8px 12px",color:"#f1f5f9",fontSize:12,outline:"none"}}/>
         <select value={coordFil} onChange={e=>setCoordFil(e.target.value)} style={{background:"#0a1628",border:"1px solid #1e293b",borderRadius:8,padding:"8px 10px",color:"#f1f5f9",fontSize:12,outline:"none"}}>
           <option value="">Todos</option><option value="TELLO">Tello</option><option value="CRISTIAN">Cristian</option><option value="JULIO">Julio</option>
@@ -1699,6 +1896,7 @@ const Cajas=({data,setData})=>{
           ))}</tbody>
         </table>
       </div>
+      </>}
     </div>
   );
 };
@@ -1974,13 +2172,31 @@ function App(){
   const syncAll=async()=>{
     setSyncState("syncing");
     try{
-      const [resumen,cajasRaw,viajesRaw,alertasRaw,mttoRaw]=await Promise.all([
+      const [resumen,cajasRaw,viajesRaw,alertasRaw,mttoRaw,pendRaw,urgRaw]=await Promise.all([
         apiGet("resumen_completo"),
         apiGet("Control_Cajas"),
         apiGet("VIAJES"),
         apiGet("ALERTAS").catch(()=>[]),
         apiGet("MANTENIMIENTO").catch(()=>[]),
+        apiGet("PENDIENTES").catch(()=>[]),
+        apiGet("URGENCIAS").catch(()=>[]),
       ]);
+      // Restore todos from Sheets if localStorage is empty
+      if(Array.isArray(pendRaw)&&pendRaw.length>0){
+        const localTodos=lsGet(TODO_KEY)||[];
+        if(localTodos.length===0){
+          const restored=pendRaw.map(r=>({id:Number(r["ID"])||Date.now(),texto:r["Texto"]||"",fecha:r["Fecha"]||"",seguimiento:r["Seguimiento"]||"",estado:r["Estado"]||"Abierto"}));
+          lsSet(TODO_KEY,restored);
+        }
+      }
+      // Restore urgs from Sheets if localStorage is empty
+      if(Array.isArray(urgRaw)&&urgRaw.length>0){
+        const localUrgs=lsGet(URG_KEY)||[];
+        if(localUrgs.length===0){
+          const restored=urgRaw.map(r=>({id:Number(r["ID"])||Date.now(),desc:r["Descripcion"]||"",prioridad:r["Prioridad"]||"Alta",estado:r["Estado"]||"Abierta",hora:r["Hora"]||""}));
+          lsSet(URG_KEY,restored);
+        }
+      }
       const upd={
         ...data,
         resumen:resumen.ok!==undefined?resumen:null,

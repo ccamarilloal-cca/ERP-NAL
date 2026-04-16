@@ -172,6 +172,7 @@ const Inicio=({data,setTab})=>{
   const [urgs,setUrgs]=useState(()=>lsGet(URG_KEY)||[]);
   const [urgModal,setUrgModal]=useState(false);
   const [urgInput,setUrgInput]=useState({desc:"",prioridad:"Alta"});
+  const [subModal,setSubModal]=useState(null); // {title, rows}
   // Venta por día
   const [ventaDias,setVentaDias]=useState(()=>lsGet(VENTA_DIA_KEY)||{});
   const [editVenta,setEditVenta]=useState(null);
@@ -197,11 +198,19 @@ const Inicio=({data,setTab})=>{
     }
   },[res]);
 
-  // Limpiar urgencias cerradas al inicio de semana
+  // Limpiar urgencias cerradas al inicio de semana (martes)
   useEffect(()=>{
     const hoy=new Date();
-    if(hoy.getDay()===1){ // lunes
+    if(hoy.getDay()===2){ // martes
       setUrgs(p=>p.filter(u=>u.estado!=="Cerrada"));
+    }
+  },[]);
+
+  // Limpiar To-Do cerrados cada martes (dan tiempo al lunes/finde)
+  useEffect(()=>{
+    const hoy=new Date();
+    if(hoy.getDay()===2){ // martes
+      setTodos(p=>p.filter(t=>t.estado!=="Cerrado"));
     }
   },[]);
 
@@ -251,25 +260,34 @@ const Inicio=({data,setTab})=>{
   };
   const cycleUrg=(id)=>setUrgs(p=>p.map(u=>u.id===id?{...u,estado:u.estado==="Abierta"?"En atención":u.estado==="En atención"?"Cerrada":"Abierta"}:u));
 
-  const BloqueResumen=({id,icon,label,valor,col,children,badge})=>{
-    const open=abiertos[id];
+  const [bloqueModal,setBloqueModal]=useState(null);
+  const BloqueResumen=({id,icon,label,valor,col,children,badge,title})=>{
     return(
-      <div style={{background:"#0a1628",border:`1px solid ${col}30`,borderRadius:11,overflow:"hidden",marginBottom:8}}>
-        <div onClick={()=>toggle(id)} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"12px 16px",cursor:"pointer"}}>
-          <div style={{display:"flex",alignItems:"center",gap:10}}>
-            <span style={{fontSize:20}}>{icon}</span>
-            <div>
-              <div style={{color:"#64748b",fontSize:10,textTransform:"uppercase",letterSpacing:.8}}>{label}</div>
-              <div style={{color:col,fontWeight:900,fontSize:22,lineHeight:1}}>{valor}</div>
+      <>
+        {bloqueModal===id&&(
+          <Modal title={title||`${icon} ${label}`} onClose={()=>setBloqueModal(null)} wide>
+            <div style={{fontSize:13}}>{children}</div>
+          </Modal>
+        )}
+        <div onClick={()=>setBloqueModal(id)}
+          style={{background:"#0a1628",border:`1px solid ${col}30`,borderRadius:11,overflow:"hidden",marginBottom:8,cursor:"pointer"}}
+          onMouseOver={e=>{e.currentTarget.style.borderColor=col+"60";e.currentTarget.style.background="#0d1e3a";}}
+          onMouseOut={e=>{e.currentTarget.style.borderColor=col+"30";e.currentTarget.style.background="#0a1628";}}>
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"14px 16px"}}>
+            <div style={{display:"flex",alignItems:"center",gap:12}}>
+              <span style={{fontSize:24}}>{icon}</span>
+              <div>
+                <div style={{color:"#64748b",fontSize:11,textTransform:"uppercase",letterSpacing:.8}}>{label}</div>
+                <div style={{color:col,fontWeight:900,fontSize:26,lineHeight:1}}>{valor}</div>
+              </div>
+            </div>
+            <div style={{display:"flex",gap:8,alignItems:"center"}}>
+              {badge&&<span style={{background:col+"20",color:col,borderRadius:6,padding:"3px 10px",fontSize:10,fontWeight:700}}>{badge}</span>}
+              <span style={{color:col,fontSize:18}}>↗</span>
             </div>
           </div>
-          <div style={{display:"flex",gap:8,alignItems:"center"}}>
-            {badge&&<span style={{background:col+"20",color:col,borderRadius:6,padding:"2px 8px",fontSize:9,fontWeight:700}}>{badge}</span>}
-            <span style={{color:"#334155",fontSize:16}}>{open?"▲":"▼"}</span>
-          </div>
         </div>
-        {open&&<div style={{borderTop:`1px solid ${col}20`,padding:"12px 16px"}}>{children}</div>}
-      </div>
+      </>
     );
   };
 
@@ -309,36 +327,68 @@ const Inicio=({data,setTab})=>{
         </Modal>
       )}
 
+      {/* Sub-modal para detalle de bloques */}
+      {subModal&&(
+        <Modal title={subModal.title} onClose={()=>setSubModal(null)} wide>
+          <div style={{overflowX:"auto"}}>
+            <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
+              <thead><tr style={{borderBottom:"2px solid #1e293b"}}>
+                {["Unidad","Operador","Coordinador","Motivo","Venta","Circuito","Ubicación/Comentarios"].map(h=>(
+                  <th key={h} style={{textAlign:"left",padding:"10px 12px",color:"#475569",fontSize:11,textTransform:"uppercase",whiteSpace:"nowrap"}}>{h}</th>
+                ))}
+              </tr></thead>
+              <tbody>{(subModal.rows||[]).map((r,i)=>(
+                <tr key={i} style={{borderBottom:"1px solid #0d1626",background:i%2===0?"#080e1c":"transparent"}}>
+                  <td style={{padding:"10px 12px",color:"#f1f5f9",fontWeight:800,fontFamily:"monospace",fontSize:14}}>{r.unidad||r.Unidad||"—"}</td>
+                  <td style={{padding:"10px 12px",color:"#94a3b8",maxWidth:150,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",fontSize:12}}>{r.operador||r.Operador||"—"}</td>
+                  <td style={{padding:"10px 12px"}}><span style={{color:cc(r.coordinador||r.Coordinador||""),fontWeight:700,fontSize:11}}>{(r.coordinador||r.Coordinador||"").split(" ")[0]}</span></td>
+                  <td style={{padding:"10px 12px"}}><Badge text={r.motivo||r.Motivo||r.estatus||""}/></td>
+                  <td style={{padding:"10px 12px",color:(r.monto||0)>0?"#10b981":"#334155",fontWeight:700,fontSize:12}}>{(r.monto||0)>0?fmt$(r.monto):"—"}</td>
+                  <td style={{padding:"10px 12px",color:r.circuito&&r.circuito!=="Sin circuito"?"#a78bfa":"#334155",fontWeight:700,fontSize:11}}>{r.circuito||"—"}</td>
+                  <td style={{padding:"10px 12px",color:"#64748b",fontSize:11,maxWidth:180,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r.comentarios||r.ubicacion||r.ruta||"—"}</td>
+                </tr>
+              ))}</tbody>
+            </table>
+          </div>
+        </Modal>
+      )}
+
       {/* Modal To-Do */}
       {todoModal&&(
-        <Modal title="✅ Mis pendientes" onClose={()=>setTodoModal(false)} wide>
-          <div style={{display:"flex",flexDirection:"column",gap:10}}>
-            <div style={{display:"flex",gap:8}}>
+        <Modal title="✅ Mis pendientes del día" onClose={()=>setTodoModal(false)} wide>
+          <div style={{display:"flex",flexDirection:"column",gap:14}}>
+            <div style={{display:"flex",gap:10}}>
               <input value={todoInput} onChange={e=>setTodoInput(e.target.value)}
                 placeholder="Agregar pendiente..." onKeyDown={e=>e.key==="Enter"&&addTodo()}
-                style={{flex:1,background:"#0f172a",border:"1px solid #1e293b",borderRadius:7,padding:"8px 10px",color:"#f1f5f9",fontSize:12,outline:"none"}}/>
-              <button onClick={addTodo} style={{background:"#3b82f620",border:"1px solid #3b82f640",borderRadius:7,padding:"8px 16px",color:"#3b82f6",fontWeight:700,cursor:"pointer"}}>+ Agregar</button>
+                style={{flex:1,background:"#0f172a",border:"1px solid #1e293b",borderRadius:9,padding:"12px 14px",color:"#f1f5f9",fontSize:15,outline:"none"}}/>
+              <button onClick={addTodo} style={{background:"#3b82f620",border:"1px solid #3b82f640",borderRadius:9,padding:"12px 20px",color:"#3b82f6",fontWeight:700,cursor:"pointer",fontSize:14}}>+ Agregar</button>
             </div>
-            {todos.length===0&&<div style={{color:"#334155",textAlign:"center",padding:20}}>Sin pendientes registrados</div>}
+            <div style={{color:"#334155",fontSize:11,textAlign:"center"}}>Las tareas cerradas se eliminan automáticamente cada martes</div>
+            {todos.length===0&&<div style={{color:"#334155",textAlign:"center",padding:30,fontSize:15}}>Sin pendientes registrados</div>}
             {todos.map((t,i)=>(
-              <div key={t.id} style={{background:t.estado==="Cerrado"?"#080e1c":"#0d1626",border:`1px solid ${t.estado==="Cerrado"?"#10b98130":t.estado==="En proceso"?"#f59e0b30":"#3b82f630"}`,borderRadius:8,padding:"10px 14px",opacity:t.estado==="Cerrado"?0.5:1}}>
-                <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:8}}>
+              <div key={t.id} style={{background:t.estado==="Cerrado"?"#080e1c":"#0d1626",border:`2px solid ${t.estado==="Cerrado"?"#10b98140":t.estado==="En proceso"?"#f59e0b50":"#3b82f650"}`,borderRadius:10,padding:"14px 18px",opacity:t.estado==="Cerrado"?0.5:1}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:10}}>
                   <div style={{flex:1}}>
-                    <div style={{color:"#f1f5f9",fontSize:12,marginBottom:4,textDecoration:t.estado==="Cerrado"?"line-through":"none"}}>{i+1}. {t.texto}</div>
-                    <div style={{display:"flex",gap:10,alignItems:"center",flexWrap:"wrap"}}>
-                      <span style={{color:"#334155",fontSize:9}}>Creado: {t.fecha}</span>
-                      <div style={{display:"flex",alignItems:"center",gap:4}}>
-                        <span style={{color:"#475569",fontSize:9}}>Seguimiento:</span>
+                    <div style={{color:"#f1f5f9",fontSize:15,fontWeight:600,marginBottom:8,textDecoration:t.estado==="Cerrado"?"line-through":"none",lineHeight:1.4}}>{i+1}. {t.texto}</div>
+                    <div style={{display:"flex",gap:14,alignItems:"center",flexWrap:"wrap"}}>
+                      <span style={{color:"#334155",fontSize:11}}>📅 Creado: {t.fecha}</span>
+                      <div style={{display:"flex",alignItems:"center",gap:6}}>
+                        <span style={{color:"#475569",fontSize:11}}>🔔 Seguimiento:</span>
                         <input type="date" value={t.seguimiento} onChange={e=>updateSeg(t.id,e.target.value)}
-                          style={{background:"#0f172a",border:"1px solid #1e293b",borderRadius:4,padding:"2px 6px",color:"#94a3b8",fontSize:9,outline:"none"}}/>
+                          style={{background:"#0f172a",border:"1px solid #1e293b",borderRadius:6,padding:"4px 10px",color:"#94a3b8",fontSize:12,outline:"none"}}/>
                       </div>
                     </div>
                   </div>
-                  <div style={{display:"flex",gap:6,alignItems:"center",flexShrink:0}}>
-                    <button onClick={()=>cycleTodo(t.id)} style={{background:t.estado==="Cerrado"?"#10b98120":t.estado==="En proceso"?"#f59e0b20":"#3b82f620",border:"none",borderRadius:6,padding:"4px 10px",color:t.estado==="Cerrado"?"#10b981":t.estado==="En proceso"?"#f59e0b":"#3b82f6",fontSize:9,cursor:"pointer",fontWeight:700,whiteSpace:"nowrap"}}>
+                  <div style={{display:"flex",gap:8,alignItems:"center",flexShrink:0}}>
+                    <button onClick={()=>cycleTodo(t.id)}
+                      style={{background:t.estado==="Cerrado"?"#10b98125":t.estado==="En proceso"?"#f59e0b25":"#3b82f625",
+                        border:`1px solid ${t.estado==="Cerrado"?"#10b98150":t.estado==="En proceso"?"#f59e0b50":"#3b82f650"}`,
+                        borderRadius:8,padding:"8px 16px",
+                        color:t.estado==="Cerrado"?"#10b981":t.estado==="En proceso"?"#f59e0b":"#3b82f6",
+                        fontSize:13,cursor:"pointer",fontWeight:700,whiteSpace:"nowrap"}}>
                       {t.estado==="Cerrado"?"✅ Cerrado":t.estado==="En proceso"?"🔄 En proceso":"⬜ Abierto"}
                     </button>
-                    <button onClick={()=>delTodo(t.id)} style={{background:"none",border:"none",color:"#334155",cursor:"pointer",fontSize:14}}>×</button>
+                    <button onClick={()=>delTodo(t.id)} style={{background:"none",border:"none",color:"#334155",cursor:"pointer",fontSize:18,padding:"4px 8px"}}>×</button>
                   </div>
                 </div>
               </div>
@@ -353,15 +403,15 @@ const Inicio=({data,setTab})=>{
           <div style={{color:"#3b82f6",fontWeight:700,fontSize:13}}>💵 Venta Semana {res?.weekNum||"—"}</div>
           <div style={{color:"#10b981",fontWeight:900,fontSize:18}}>{fmt$(ventaSem)}</div>
         </div>
-        <div style={{display:"grid",gridTemplateColumns:"repeat(6,1fr)",gap:6}}>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(6,1fr)",gap:8}}>
           {diasSemana.map(d=>{
             const clave=d.label;
             const dv=ventaDias[clave];
             const esHoy=d.esHoy;
             return(
-              <div key={clave} style={{background:esHoy?"#1e3a5f":"#0d1626",border:`1px solid ${esHoy?"#3b82f6":"#1e293b"}`,borderRadius:8,padding:"8px 6px",textAlign:"center",position:"relative"}}>
-                <div style={{color:esHoy?"#3b82f6":"#475569",fontSize:9,fontWeight:esHoy?700:400,textTransform:"uppercase"}}>{clave}</div>
-                <div style={{color:"#334155",fontSize:8}}>{d.num}</div>
+              <div key={clave} style={{background:esHoy?"#1e3a5f":"#0d1626",border:`2px solid ${esHoy?"#3b82f6":"#1e293b"}`,borderRadius:10,padding:"10px 6px",textAlign:"center",position:"relative"}}>
+                <div style={{color:esHoy?"#3b82f6":"#475569",fontSize:11,fontWeight:esHoy?700:400,textTransform:"uppercase",letterSpacing:.5}}>{clave}</div>
+                <div style={{color:"#334155",fontSize:10,marginBottom:4}}>{d.num}</div>
                 {editVenta===clave
                   ?<input autoFocus type="number" value={editVentaVal}
                     onChange={e=>setEditVentaVal(e.target.value)}
@@ -370,18 +420,25 @@ const Inicio=({data,setTab})=>{
                       setEditVenta(null);setEditVentaVal("");
                     }}
                     onKeyDown={e=>e.key==="Enter"&&e.target.blur()}
-                    style={{width:"100%",background:"#0f172a",border:"1px solid #3b82f6",borderRadius:4,padding:"2px 4px",color:"#f1f5f9",fontSize:9,outline:"none",textAlign:"center"}}/>
+                    style={{width:"100%",background:"#0f172a",border:"2px solid #3b82f6",borderRadius:6,padding:"6px 4px",color:"#f1f5f9",fontSize:13,outline:"none",textAlign:"center",fontWeight:700}}/>
                   :<div onClick={()=>{setEditVenta(clave);setEditVentaVal(dv?.val||"");}}
-                    style={{color:dv?.val>0?"#10b981":"#1e293b",fontWeight:700,fontSize:dv?.val>=1000000?11:12,marginTop:4,cursor:"text",minHeight:18}}>
-                    {dv?.val>0?fmt$(dv.val):"—"}
-                    {dv?.auto&&dv?.ts&&<div style={{color:"#334155",fontSize:7,marginTop:1}}>{dv.ts}</div>}
+                    style={{color:dv?.val>0?"#10b981":"#334155",fontWeight:700,fontSize:dv?.val>=1000000?12:13,marginTop:4,cursor:"text",minHeight:24,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center"}}>
+                    {dv?.val>0?fmt$(dv.val):<span style={{fontSize:16,color:"#1e3a5f"}}>+</span>}
+                    {dv?.auto&&dv?.ts&&<div style={{color:"#334155",fontSize:8,marginTop:1}}>{dv.ts}</div>}
                   </div>
                 }
               </div>
             );
           })}
         </div>
-        <div style={{color:"#334155",fontSize:8,marginTop:6,textAlign:"center"}}>Toca cualquier día para editar · El día actual se actualiza automáticamente</div>
+        {/* Total semana */}
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:8,padding:"10px 14px",background:"#060d1a",borderRadius:9,border:"1px solid #1e3a5f"}}>
+          <span style={{color:"#475569",fontSize:11,textTransform:"uppercase",letterSpacing:.8}}>📊 Total semana acumulado</span>
+          <span style={{color:"#10b981",fontWeight:900,fontSize:20}}>
+            {fmt$(Object.values(ventaDias).reduce((s,d)=>s+(d?.val||0),0))}
+          </span>
+        </div>
+        <div style={{color:"#334155",fontSize:9,textAlign:"center"}}>Toca cualquier día para editar · El día actual se actualiza automáticamente</div>
       </div>
 
       {/* ── MENÚ NAVEGACIÓN ── */}
@@ -413,86 +470,100 @@ const Inicio=({data,setTab})=>{
         <BloqueResumen id="venta" icon="💵" label="Venta Hoy" valor={fmt$(ventaHoy)} col="#10b981" badge={`Sem: ${fmt$(ventaSem)}`}>
           <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8,marginBottom:12}}>
             {["TELLO","CRISTIAN","JULIO"].map(k=>(
-              <div key={k} style={{background:C[k]+"10",borderRadius:8,padding:"10px 8px",textAlign:"center"}}>
-                <div style={{color:C[k],fontWeight:900,fontSize:14}}>{fmt$(venta.hoy?.[k]||0)}</div>
-                <div style={{color:"#475569",fontSize:8}}>HOY · {k}</div>
-                <div style={{color:"#334155",fontSize:8}}>Sem: {fmt$(venta.semana?.[k]||0)}</div>
+              <div key={k} style={{background:C[k]+"10",borderRadius:8,padding:"12px 8px",textAlign:"center"}}>
+                <div style={{color:C[k],fontWeight:900,fontSize:18}}>{fmt$(venta.hoy?.[k]||0)}</div>
+                <div style={{color:"#64748b",fontSize:10,marginTop:2}}>HOY · {k}</div>
+                <div style={{color:"#334155",fontSize:9}}>Sem: {fmt$(venta.semana?.[k]||0)}</div>
               </div>
             ))}
           </div>
           {pBar(venta.cumpl?.TOTAL||0,6)}
-          <div style={{color:"#334155",fontSize:9,marginTop:4,textAlign:"right"}}>{venta.cumpl?.TOTAL||0}% de meta semanal</div>
+          <div style={{color:"#334155",fontSize:9,marginTop:4,marginBottom:10,textAlign:"right"}}>{venta.cumpl?.TOTAL||0}% de meta semanal</div>
+          <button onClick={()=>setTab("tractos")} style={{width:"100%",background:"#10b98115",border:"1px solid #10b98130",borderRadius:7,padding:"10px",color:"#10b981",fontSize:12,cursor:"pointer",fontWeight:700}}>
+            Ver detalle por unidad →
+          </button>
         </BloqueResumen>
 
         {/* OTIF + Vencidas */}
         <BloqueResumen id="otif" icon="🎯" label="OTIF / Vencidas" valor={`${pctOTIF}%`} col={pctOTIF>=85?"#10b981":"#ef4444"} badge={`${totalVencidas} vencidas`}>
-          <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:6,marginBottom:10}}>
-            {[[`${pctOTIF}%`,"OTIF",pctOTIF>=85?"#10b981":"#ef4444"],[otif.onTimeSem||0,"A tiempo","#10b981"],[otif.late||0,"Tardías","#ef4444"],[otif.sinFecha||0,"Sin fecha","#64748b"]].map(([v,l,col])=>(
-              <div key={l} style={{background:col+"10",borderRadius:7,padding:"8px 4px",textAlign:"center"}}>
-                <div style={{color:col,fontWeight:900,fontSize:14}}>{v}</div>
-                <div style={{color:"#475569",fontSize:8}}>{l}</div>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:8,marginBottom:10}}>
+            {[
+              [`${pctOTIF}%`,"OTIF",pctOTIF>=85?"#10b981":"#ef4444",null],
+              [otif.onTimeSem||0,"A tiempo","#10b981",entregas.aTiempo],
+              [otif.late||0,"Tardías","#ef4444",entregas.vencidas],
+              [totalVencidas,"Vencidas","#ef4444",entregas.vencidas],
+            ].map(([v,l,col,rows])=>(
+              <div key={l} onClick={e=>{e.stopPropagation();rows&&rows.length>0&&setSubModal({title:`🎯 ${l} — ${rows.length} entregas`,rows});}}
+                style={{background:col+"10",border:`2px solid ${col}${rows&&rows.length>0?"50":"20"}`,borderRadius:10,padding:"12px 6px",textAlign:"center",cursor:rows&&rows.length>0?"pointer":"default",transition:"all .15s"}}
+                onMouseOver={e=>rows&&rows.length>0&&(e.currentTarget.style.background=col+"25")}
+                onMouseOut={e=>e.currentTarget.style.background=col+"10"}>
+                <div style={{color:col,fontWeight:900,fontSize:24}}>{v}</div>
+                <div style={{color:"#94a3b8",fontSize:11,marginTop:3}}>{l}</div>
+                {rows&&rows.length>0&&<div style={{color:col,fontSize:9,marginTop:2}}>↗ ver</div>}
               </div>
             ))}
           </div>
-          {totalVencidas>0&&(
-            <div style={{background:"#1f0a0a",border:"1px solid #ef444440",borderRadius:8,padding:"10px 12px"}}>
-              <div style={{color:"#ef4444",fontWeight:700,fontSize:11,marginBottom:6}}>🔴 {totalVencidas} vencidas de {totalViajes}</div>
-              <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
-                {(entregas.vencidas||[]).slice(0,4).map((v,i)=>(
-                  <div key={i} style={{background:"#2d0a0a",borderRadius:6,padding:"4px 8px",fontSize:9}}>
-                    <span style={{color:"#f1f5f9",fontWeight:700}}>🚛 {v.unidad}</span>
-                    <span style={{color:"#ef4444",marginLeft:4}}>{v.cliente}</span>
-                  </div>
-                ))}
-                {totalVencidas>4&&<span style={{color:"#64748b",fontSize:9,alignSelf:"center"}}>+{totalVencidas-4} más</span>}
-              </div>
-            </div>
-          )}
         </BloqueResumen>
 
         {/* Vacantes */}
         <BloqueResumen id="vacantes" icon="🪑" label="Vacantes" valor={totalVacantes} col="#64748b">
           <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8,marginBottom:10}}>
-            {[["SO",flota.vacantes?.SO||0,"#64748b"],["IND",flota.vacantes?.IND||0,"#ef4444"],["PER",flota.vacantes?.PER||0,"#a855f7"]].map(([l,v,col])=>(
-              <div key={l} style={{background:col+"15",borderRadius:7,padding:"8px",textAlign:"center"}}>
-                <div style={{color:col,fontWeight:900,fontSize:18}}>{v}</div>
-                <div style={{color:"#475569",fontSize:8}}>{l}</div>
-              </div>
-            ))}
-          </div>
-          <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
-            {(flota.vacantes?.detalle||[]).map((u,i)=>(
-              <span key={i} style={{background:"#64748b15",border:"1px solid #64748b30",borderRadius:5,padding:"2px 7px",fontSize:9,color:"#94a3b8",fontFamily:"monospace"}}>
-                {u.unidad} <span style={{color:"#475569"}}>{u.motivo}</span>
-              </span>
-            ))}
+            {[["SO","#64748b","Sin Operador"],["IND","#ef4444","Indisciplina"],["PER","#a855f7","Permiso"]].map(([tipo,col,desc])=>{
+              const rows=(flota.vacantes?.detalle||[]).filter(u=>String(u.motivo||"").toUpperCase().startsWith(tipo));
+              const cnt=flota.vacantes?.[tipo]||0;
+              return(
+                <div key={tipo} onClick={e=>{e.stopPropagation();cnt>0&&setSubModal({title:`🪑 ${tipo} — ${desc} (${cnt} unidades)`,rows:rows.length>0?rows:(flota.grupos?.[tipo]||[])});}}
+                  style={{background:col+"15",border:`2px solid ${col}${cnt>0?"60":"20"}`,borderRadius:10,padding:"14px 8px",textAlign:"center",cursor:cnt>0?"pointer":"default",transition:"all .15s"}}
+                  onMouseOver={e=>cnt>0&&(e.currentTarget.style.background=col+"30")}
+                  onMouseOut={e=>e.currentTarget.style.background=col+"15"}>
+                  <div style={{color:col,fontWeight:900,fontSize:32}}>{cnt}</div>
+                  <div style={{color:"#94a3b8",fontSize:12,fontWeight:700,marginTop:4}}>{tipo}</div>
+                  <div style={{color:"#475569",fontSize:10,marginTop:2}}>{desc}</div>
+                  {cnt>0&&<div style={{color:col,fontSize:10,marginTop:4}}>↗ ver detalle</div>}
+                </div>
+              );
+            })}
           </div>
         </BloqueResumen>
 
         {/* MTTO */}
         <BloqueResumen id="mtto" icon="🔧" label="En Mantenimiento" valor={totalMtto} col="#f59e0b" badge={alertasMtto.length>0?`⚠️ ${alertasMtto.length} exceden tiempo`:""}>
-          <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:6,marginBottom:8}}>
-            {[["CP",flota.enCP?.CP||0,"#f59e0b"],["RM",flota.enCP?.RM||0,"#ef4444"],["SG",flota.enCP?.SG||0,"#ef4444"]].map(([l,v,col])=>(
-              <div key={l} style={{background:col+"15",borderRadius:7,padding:"8px",textAlign:"center"}}>
-                <div style={{color:col,fontWeight:900,fontSize:18}}>{v}</div>
-                <div style={{color:"#475569",fontSize:8}}>{l}</div>
-              </div>
-            ))}
+          <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8,marginBottom:10}}>
+            {[["CP","#f59e0b"],["RM","#ef4444"],["SG","#ef4444"]].map(([tipo,col])=>{
+              const rows=flota.grupos?.[tipo]||[];
+              return(
+                <div key={tipo} onClick={e=>{e.stopPropagation();rows.length>0&&setSubModal({title:`🔧 ${tipo} — ${rows.length} unidades en mantenimiento`,rows});}}
+                  style={{background:col+"15",border:`2px solid ${col}${rows.length>0?"60":"20"}`,borderRadius:10,padding:"14px 8px",textAlign:"center",cursor:rows.length>0?"pointer":"default",transition:"all .15s"}}
+                  onMouseOver={e=>rows.length>0&&(e.currentTarget.style.background=col+"30")}
+                  onMouseOut={e=>e.currentTarget.style.background=col+"15"}>
+                  <div style={{color:col,fontWeight:900,fontSize:32}}>{rows.length}</div>
+                  <div style={{color:"#94a3b8",fontSize:12,fontWeight:700,marginTop:4}}>{tipo}</div>
+                  {rows.length>0&&<div style={{color:col,fontSize:10,marginTop:4}}>↗ ver detalle</div>}
+                </div>
+              );
+            })}
           </div>
-          <button onClick={()=>setTab("mantenimiento")} style={{width:"100%",background:"#f59e0b15",border:"1px solid #f59e0b30",borderRadius:7,padding:"8px",color:"#f59e0b",fontSize:11,cursor:"pointer",fontWeight:700}}>
+          <button onClick={()=>setTab("mantenimiento")} style={{width:"100%",background:"#f59e0b15",border:"1px solid #f59e0b30",borderRadius:7,padding:"10px",color:"#f59e0b",fontSize:12,cursor:"pointer",fontWeight:700}}>
             Ver detalle y gestión →
           </button>
         </BloqueResumen>
 
-        {/* Flota */}
+        {/* Flota — cada tipo clickeable */}
         <BloqueResumen id="flota" icon="🚛" label="Flota Operando" valor={`${flota.enOperacion||0}/${flota.total||0}`} col="#10b981" badge={`${flota.pctUtilizacion||0}%`}>
-          <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:4}}>
-            {[["VTA",flota.resumen?.VTA||0,"#10b981"],["TRN",flota.resumen?.TRN||0,"#3b82f6"],["MOV",flota.resumen?.MOV||0,"#10b981"],["LIB",flota.resumen?.LIB||0,"#a855f7"],["DCO",flota.resumen?.DCO||0,"#3b82f6"],["DSO",flota.resumen?.DSO||0,"#64748b"],["CP",flota.enCP?.CP||0,"#f59e0b"],["RM",flota.resumen?.RM||0,"#ef4444"]].map(([l,v,col])=>(
-              <div key={l} style={{background:col+"15",borderRadius:5,padding:"6px 4px",textAlign:"center"}}>
-                <div style={{color:col,fontWeight:900,fontSize:14}}>{v}</div>
-                <div style={{color:"#475569",fontSize:8}}>{l}</div>
-              </div>
-            ))}
+          <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:8}}>
+            {[["VTA","#10b981"],["TRN","#3b82f6"],["MOV","#10b981"],["LIB","#a855f7"],["DCO","#3b82f6"],["DSO","#64748b"],["CP","#f59e0b"],["RM","#ef4444"],["SG","#ef4444"],["SO","#64748b"],["IND","#ef4444"],["PER","#a855f7"]].map(([tipo,col])=>{
+              const rows=flota.grupos?.[tipo]||[];
+              return(
+                <div key={tipo} onClick={e=>{e.stopPropagation();rows.length>0&&setSubModal({title:`🚛 ${tipo} — ${rows.length} unidades`,rows});}}
+                  style={{background:col+"15",border:`2px solid ${col}${rows.length>0?"50":"20"}`,borderRadius:9,padding:"10px 6px",textAlign:"center",cursor:rows.length>0?"pointer":"default",transition:"all .15s"}}
+                  onMouseOver={e=>rows.length>0&&(e.currentTarget.style.background=col+"30")}
+                  onMouseOut={e=>e.currentTarget.style.background=col+"15"}>
+                  <div style={{color:col,fontWeight:900,fontSize:22}}>{rows.length}</div>
+                  <div style={{color:"#94a3b8",fontSize:11,fontWeight:700,marginTop:2}}>{tipo}</div>
+                  {rows.length>0&&<div style={{color:col,fontSize:9,marginTop:2}}>↗</div>}
+                </div>
+              );
+            })}
           </div>
         </BloqueResumen>
 
@@ -1493,7 +1564,7 @@ const Cajas=({data,setData})=>{
           <div style={{color:"#475569",fontSize:11,textTransform:"uppercase",letterSpacing:1,marginBottom:8}}>📍 Distribución por Patio (click = detalle)</div>
           <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
             {patiosData.map(p=>(
-              <div key={p.patio} onClick={()=>{setPFil(pFil===p.patio?"":p.patio);setModalPatio(pFil===p.patio?null:p);}}
+              <div key={p.patio} onClick={()=>setModalPatio(p)}
                 style={{background:pFil===p.patio?"#1e3a5f":"#0a1628",border:`1px solid ${pFil===p.patio?"#3b82f6":"#1e293b"}`,borderRadius:8,padding:"8px 12px",cursor:"pointer",minWidth:100}}>
                 <div style={{color:"#3b82f6",fontWeight:900,fontSize:18}}>{p.total}</div>
                 <div style={{color:"#f1f5f9",fontSize:10,fontWeight:700}}>{p.patio}</div>
@@ -1861,6 +1932,15 @@ function App(){
       {/* Content */}
       <div style={{padding:"14px 16px",maxWidth:1100,margin:"0 auto"}}>
         <SyncBanner state={syncState} onSync={syncAll} lastSync={lastSync} autoInterval={autoInterval} setAutoInterval={setAutoInterval}/>
+        {tab!=="inicio"&&(
+          <div style={{display:"flex",justifyContent:"flex-end",marginBottom:8}}>
+            <button onClick={()=>setTab("inicio")}
+              style={{background:"#0a1628",border:"1px solid #1e3a5f",borderRadius:8,padding:"7px 14px",
+                color:"#3b82f6",fontSize:12,cursor:"pointer",fontWeight:700,display:"flex",alignItems:"center",gap:6}}>
+              🏠 Inicio
+            </button>
+          </div>
+        )}
         {tab==="inicio"       &&<Inicio data={data} setTab={setTab}/>}
         {tab==="tractos"      &&<Tractos data={data}/>}
         {tab==="tracker"      &&<Tracker data={data}/>}

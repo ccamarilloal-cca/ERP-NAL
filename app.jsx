@@ -168,11 +168,14 @@ const Inicio=({data,setTab})=>{
   const [todos,setTodos]=useState(()=>lsGet(TODO_KEY)||[]);
   const [todoInput,setTodoInput]=useState("");
   const [todoModal,setTodoModal]=useState(false);
+  const [editTodoId,setEditTodoId]=useState(null);
+  const [editTodoVal,setEditTodoVal]=useState("");
   // Urgencias
   const [urgs,setUrgs]=useState(()=>lsGet(URG_KEY)||[]);
   const [urgModal,setUrgModal]=useState(false);
   const [urgInput,setUrgInput]=useState({desc:"",prioridad:"Alta"});
   const [subModal,setSubModal]=useState(null); // {title, rows}
+  const openSubModal=(obj)=>{ setBloqueModal(null); setSubModal(obj); };
   // Venta por día
   const [ventaDias,setVentaDias]=useState(()=>lsGet(VENTA_DIA_KEY)||{});
   const [editVenta,setEditVenta]=useState(null);
@@ -249,6 +252,10 @@ const Inicio=({data,setTab})=>{
     setTodoInput("");
   };
   const cycleTodo=(id)=>setTodos(p=>p.map(t=>t.id===id?{...t,estado:t.estado==="Abierto"?"En proceso":t.estado==="En proceso"?"Cerrado":"Abierto"}:t));
+  const saveEditTodo=(id)=>{
+    if(editTodoVal.trim()) setTodos(p=>p.map(t=>t.id===id?{...t,texto:editTodoVal.trim()}:t));
+    setEditTodoId(null); setEditTodoVal("");
+  };
   const delTodo=(id)=>setTodos(p=>p.filter(t=>t.id!==id));
   const updateSeg=(id,val)=>setTodos(p=>p.map(t=>t.id===id?{...t,seguimiento:val}:t));
 
@@ -369,7 +376,19 @@ const Inicio=({data,setTab})=>{
               <div key={t.id} style={{background:t.estado==="Cerrado"?"#080e1c":"#0d1626",border:`2px solid ${t.estado==="Cerrado"?"#10b98140":t.estado==="En proceso"?"#f59e0b50":"#3b82f650"}`,borderRadius:10,padding:"14px 18px",opacity:t.estado==="Cerrado"?0.5:1}}>
                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:10}}>
                   <div style={{flex:1}}>
-                    <div style={{color:"#f1f5f9",fontSize:15,fontWeight:600,marginBottom:8,textDecoration:t.estado==="Cerrado"?"line-through":"none",lineHeight:1.4}}>{i+1}. {t.texto}</div>
+                    {editTodoId===t.id
+                      ?<input autoFocus value={editTodoVal} onChange={e=>setEditTodoVal(e.target.value)}
+                        onBlur={()=>saveEditTodo(t.id)} onKeyDown={e=>e.key==="Enter"&&saveEditTodo(t.id)}
+                        style={{width:"100%",background:"#0f172a",border:"2px solid #3b82f6",borderRadius:7,
+                          padding:"8px 12px",color:"#f1f5f9",fontSize:15,outline:"none",marginBottom:8}}/>
+                      :<div onClick={()=>{setEditTodoId(t.id);setEditTodoVal(t.texto);}}
+                        title="Clic para editar"
+                        style={{color:"#f1f5f9",fontSize:15,fontWeight:600,marginBottom:8,
+                          textDecoration:t.estado==="Cerrado"?"line-through":"none",lineHeight:1.4,
+                          cursor:"text",borderBottom:"1px dashed #1e293b",paddingBottom:2}}>
+                        {i+1}. {t.texto} <span style={{color:"#334155",fontSize:11}}>✏️</span>
+                      </div>
+                    }
                     <div style={{display:"flex",gap:14,alignItems:"center",flexWrap:"wrap"}}>
                       <span style={{color:"#334155",fontSize:11}}>📅 Creado: {t.fecha}</span>
                       <div style={{display:"flex",alignItems:"center",gap:6}}>
@@ -416,7 +435,8 @@ const Inicio=({data,setTab})=>{
                   ?<input autoFocus type="number" value={editVentaVal}
                     onChange={e=>setEditVentaVal(e.target.value)}
                     onBlur={()=>{
-                      if(editVentaVal){setVentaDias(p=>({...p,[clave]:{val:parseFloat(editVentaVal),auto:false,ts:"manual"}}));}
+                      const numVal = editVentaVal===="" ? 0 : parseFloat(editVentaVal)||0;
+                      setVentaDias(p=>({...p,[clave]:{val:numVal,auto:false,ts:"manual"}}));
                       setEditVenta(null);setEditVentaVal("");
                     }}
                     onKeyDown={e=>e.key==="Enter"&&e.target.blur()}
@@ -435,7 +455,7 @@ const Inicio=({data,setTab})=>{
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:8,padding:"10px 14px",background:"#060d1a",borderRadius:9,border:"1px solid #1e3a5f"}}>
           <span style={{color:"#475569",fontSize:11,textTransform:"uppercase",letterSpacing:.8}}>📊 Total semana acumulado</span>
           <span style={{color:"#10b981",fontWeight:900,fontSize:20}}>
-            {fmt$(Object.values(ventaDias).reduce((s,d)=>s+(d?.val||0),0))}
+            {fmt$(Object.values(ventaDias).reduce((s,d)=>s+(typeof d?.val==="number"?d.val:0),0))}
           </span>
         </div>
         <div style={{color:"#334155",fontSize:9,textAlign:"center"}}>Toca cualquier día para editar · El día actual se actualiza automáticamente</div>
@@ -493,7 +513,7 @@ const Inicio=({data,setTab})=>{
               [otif.late||0,"Tardías","#ef4444",entregas.vencidas],
               [totalVencidas,"Vencidas","#ef4444",entregas.vencidas],
             ].map(([v,l,col,rows])=>(
-              <div key={l} onClick={e=>{e.stopPropagation();rows&&rows.length>0&&setSubModal({title:`🎯 ${l} — ${rows.length} entregas`,rows});}}
+              <div key={l} onClick={e=>{e.stopPropagation();rows&&rows.length>0&&openSubModal({title:`🎯 ${l} — ${rows.length} entregas`,rows});}}
                 style={{background:col+"10",border:`2px solid ${col}${rows&&rows.length>0?"50":"20"}`,borderRadius:10,padding:"12px 6px",textAlign:"center",cursor:rows&&rows.length>0?"pointer":"default",transition:"all .15s"}}
                 onMouseOver={e=>rows&&rows.length>0&&(e.currentTarget.style.background=col+"25")}
                 onMouseOut={e=>e.currentTarget.style.background=col+"10"}>
@@ -512,7 +532,7 @@ const Inicio=({data,setTab})=>{
               const rows=(flota.vacantes?.detalle||[]).filter(u=>String(u.motivo||"").toUpperCase().startsWith(tipo));
               const cnt=flota.vacantes?.[tipo]||0;
               return(
-                <div key={tipo} onClick={e=>{e.stopPropagation();cnt>0&&setSubModal({title:`🪑 ${tipo} — ${desc} (${cnt} unidades)`,rows:rows.length>0?rows:(flota.grupos?.[tipo]||[])});}}
+                <div key={tipo} onClick={e=>{e.stopPropagation();cnt>0&&openSubModal({title:`🪑 ${tipo} — ${desc} (${cnt} unidades)`,rows:rows.length>0?rows:(flota.grupos?.[tipo]||[])});}}
                   style={{background:col+"15",border:`2px solid ${col}${cnt>0?"60":"20"}`,borderRadius:10,padding:"14px 8px",textAlign:"center",cursor:cnt>0?"pointer":"default",transition:"all .15s"}}
                   onMouseOver={e=>cnt>0&&(e.currentTarget.style.background=col+"30")}
                   onMouseOut={e=>e.currentTarget.style.background=col+"15"}>
@@ -532,7 +552,7 @@ const Inicio=({data,setTab})=>{
             {[["CP","#f59e0b"],["RM","#ef4444"],["SG","#ef4444"]].map(([tipo,col])=>{
               const rows=flota.grupos?.[tipo]||[];
               return(
-                <div key={tipo} onClick={e=>{e.stopPropagation();rows.length>0&&setSubModal({title:`🔧 ${tipo} — ${rows.length} unidades en mantenimiento`,rows});}}
+                <div key={tipo} onClick={e=>{e.stopPropagation();rows.length>0&&openSubModal({title:`🔧 ${tipo} — ${rows.length} unidades en mantenimiento`,rows});}}
                   style={{background:col+"15",border:`2px solid ${col}${rows.length>0?"60":"20"}`,borderRadius:10,padding:"14px 8px",textAlign:"center",cursor:rows.length>0?"pointer":"default",transition:"all .15s"}}
                   onMouseOver={e=>rows.length>0&&(e.currentTarget.style.background=col+"30")}
                   onMouseOut={e=>e.currentTarget.style.background=col+"15"}>
@@ -543,9 +563,20 @@ const Inicio=({data,setTab})=>{
               );
             })}
           </div>
-          <button onClick={()=>setTab("mantenimiento")} style={{width:"100%",background:"#f59e0b15",border:"1px solid #f59e0b30",borderRadius:7,padding:"10px",color:"#f59e0b",fontSize:12,cursor:"pointer",fontWeight:700}}>
-            Ver detalle y gestión →
-          </button>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+            <button onClick={()=>setTab("mantenimiento")} style={{background:"#f59e0b15",border:"1px solid #f59e0b30",borderRadius:7,padding:"10px",color:"#f59e0b",fontSize:12,cursor:"pointer",fontWeight:700}}>
+              🔧 Ver detalle →
+            </button>
+            <button onClick={e=>{e.stopPropagation();openSubModal({
+              title:"✅ Liberadas esta semana",
+              rows:Object.entries(
+                lsGet("nal_mtto_estados_v10")||{}
+              ).filter(([,v])=>v.estado==="Liberada")
+               .map(([u,v])=>({unidad:u,estadoGestion:v.estado,nuevaFecha:v.nuevaFecha||"—",comentarios:v.comentario||"—"}))
+            });}} style={{background:"#10b98115",border:"1px solid #10b98130",borderRadius:7,padding:"10px",color:"#10b981",fontSize:12,cursor:"pointer",fontWeight:700}}>
+              ✅ Liberadas
+            </button>
+          </div>
         </BloqueResumen>
 
         {/* Flota — cada tipo clickeable */}
@@ -554,7 +585,7 @@ const Inicio=({data,setTab})=>{
             {[["VTA","#10b981"],["TRN","#3b82f6"],["MOV","#10b981"],["LIB","#a855f7"],["DCO","#3b82f6"],["DSO","#64748b"],["CP","#f59e0b"],["RM","#ef4444"],["SG","#ef4444"],["SO","#64748b"],["IND","#ef4444"],["PER","#a855f7"]].map(([tipo,col])=>{
               const rows=flota.grupos?.[tipo]||[];
               return(
-                <div key={tipo} onClick={e=>{e.stopPropagation();rows.length>0&&setSubModal({title:`🚛 ${tipo} — ${rows.length} unidades`,rows});}}
+                <div key={tipo} onClick={e=>{e.stopPropagation();rows.length>0&&openSubModal({title:`🚛 ${tipo} — ${rows.length} unidades`,rows});}}
                   style={{background:col+"15",border:`2px solid ${col}${rows.length>0?"50":"20"}`,borderRadius:9,padding:"10px 6px",textAlign:"center",cursor:rows.length>0?"pointer":"default",transition:"all .15s"}}
                   onMouseOver={e=>rows.length>0&&(e.currentTarget.style.background=col+"30")}
                   onMouseOut={e=>e.currentTarget.style.background=col+"15"}>
@@ -586,10 +617,10 @@ const Inicio=({data,setTab})=>{
             <button onClick={addTodo} style={{background:"#3b82f620",border:"1px solid #3b82f640",borderRadius:7,padding:"7px 14px",color:"#3b82f6",fontWeight:700,cursor:"pointer"}}>+</button>
           </div>
           {todosAbiertos.slice(0,3).map((t,i)=>(
-            <div key={t.id} onClick={()=>cycleTodo(t.id)} style={{display:"flex",alignItems:"center",gap:8,padding:"6px 8px",borderRadius:6,cursor:"pointer",marginBottom:4,background:t.estado==="En proceso"?"#1a1200":"#080e1c"}}>
-              <span style={{fontSize:14}}>{t.estado==="En proceso"?"🔄":"⬜"}</span>
+            <div key={t.id} style={{display:"flex",alignItems:"center",gap:8,padding:"6px 8px",borderRadius:6,marginBottom:4,background:t.estado==="En proceso"?"#1a1200":"#080e1c"}}>
+              <span onClick={()=>cycleTodo(t.id)} style={{fontSize:14,cursor:"pointer"}}>{t.estado==="En proceso"?"🔄":"⬜"}</span>
               <span style={{color:"#94a3b8",fontSize:11,flex:1}}>{i+1}. {t.texto}</span>
-              <span style={{color:"#334155",fontSize:9}}>{t.seguimiento}</span>
+              <span onClick={()=>setTodoModal(true)} style={{color:"#334155",fontSize:9,cursor:"pointer"}}>✏️</span>
             </div>
           ))}
           {todosAbiertos.length>3&&<div style={{color:"#334155",fontSize:9,textAlign:"center",marginTop:4}}>+{todosAbiertos.length-3} más — ver todos</div>}
@@ -828,11 +859,13 @@ const Tractos=({data})=>{
             const cnt=(grupos[t.k]||[]).length;
             const sel=mFil===t.k;
             return(
-              <div key={t.k} onClick={()=>setMFil(sel?"":t.k)}
+              <div key={t.k}
+                onClick={()=>{setMFil(sel?"":t.k); if(!sel&&cnt>0) setModal({title:`${t.ic} ${t.k} — ${cnt} unidades`,rows:grupos[t.k]||[],cols:COLS_UNIDAD});}}
                 style={{background:sel?t.col+"30":t.col+"15",border:`2px solid ${sel?t.col:t.col+"30"}`,
                   borderRadius:8,padding:"8px 4px",textAlign:"center",cursor:"pointer"}}>
                 <div style={{color:t.col,fontWeight:900,fontSize:16}}>{cnt}</div>
                 <div style={{color:t.col,fontSize:8,fontWeight:700}}>{t.k}</div>
+                {cnt>0&&<div style={{color:t.col,fontSize:7,marginTop:1}}>↗</div>}
               </div>
             );
           })}
@@ -915,7 +948,10 @@ const Alertas=({data,setData})=>{
     if(!USAR_SHEETS) return;
     setSaving(true);
     const todasAlertas=Object.entries(newMap).map(([k,v])=>({ID:k,Estado:v.estado,Comentario:v.comentario,Fecha:v.ts}));
-    try{await apiPost("ALERTAS",todasAlertas);}catch(e){console.error(e);}
+    try{
+      await apiPost("ALERTAS",todasAlertas);
+      setData(prev=>({...prev,alertasList:todasAlertas}));
+    }catch(e){console.error(e);}
     setSaving(false);
   };
 
@@ -948,8 +984,16 @@ const Alertas=({data,setData})=>{
         return(<Modal title={`💬 ${a.tipo} · ${a.unidad}`} onClose={()=>setModalComent(null)}>
           <div style={{display:"flex",flexDirection:"column",gap:10}}>
             {est.comentario&&<div style={{background:"#0d1626",borderRadius:7,padding:"10px 12px",fontSize:11,color:"#94a3b8"}}><b style={{color:"#64748b"}}>Último comentario:</b><br/>{est.comentario}<br/><span style={{color:"#334155",fontSize:9}}>{est.ts?.slice(0,16)}</span></div>}
-            <textarea value={comentInput} onChange={e=>setComentInput(e.target.value)} placeholder="Escribe el seguimiento, acción tomada, nueva fecha..." rows={4}
+            <textarea value={comentInput} onChange={e=>setComentInput(e.target.value)}
+              placeholder="Escribe el seguimiento, acción tomada, nueva fecha..."
+              rows={4}
               style={{background:"#0f172a",border:"1px solid #1e293b",borderRadius:8,padding:"10px",color:"#f1f5f9",fontSize:12,outline:"none",resize:"vertical"}}/>
+            <div style={{display:"flex",gap:8}}>
+              {est.comentario&&<button onClick={()=>setComentInput(est.comentario)}
+                style={{background:"#1e293b",border:"none",borderRadius:6,padding:"6px 12px",color:"#64748b",fontSize:10,cursor:"pointer"}}>
+                ✏️ Editar comentario anterior
+              </button>}
+            </div>
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
               <button onClick={async()=>{await guardarEstado(modalComent,a,"seguimiento",comentInput);setModalComent(null);setComentInput("");}}
                 style={{background:"#f59e0b20",border:"1px solid #f59e0b60",borderRadius:8,padding:"10px",color:"#f59e0b",fontWeight:700,cursor:"pointer",fontSize:12}}>🔄 En seguimiento</button>
@@ -1255,11 +1299,15 @@ const Mantenimiento=({data,setData})=>{
   if(!res) return <div style={{color:"#475569",textAlign:"center",padding:40}}>Sincroniza para cargar datos</div>;
   const grupos=res.flota?.grupos||{};
   const [selTab,setSelTab]=useState("CP");
-  const [mttoEstados,setMttoEstados]=useState({});
+  const MTTO_LS_KEY="nal_mtto_estados_v10";
+  const [mttoEstados,setMttoEstados]=useState(()=>{
+    try{const r=localStorage.getItem("nal_mtto_estados_v10");return r?JSON.parse(r):{};}catch{return{};}
+  });
   const [modalGest,setModalGest]=useState(null);
   const [formGest,setFormGest]=useState({});
   const [saving,setSaving]=useState(false);
   const [vistaMode,setVistaMode]=useState("tabla"); // "tabla" | "triage"
+  const [liberadasModal,setLiberadasModal]=useState(false);
   const alertasMtto=res.alertasMtto||[];
 
   const CONF=[
@@ -1270,12 +1318,24 @@ const Mantenimiento=({data,setData})=>{
   const cfg=CONF.find(c=>c.k===selTab)||CONF[0];
   const filas=grupos[selTab]||[];
 
+  // Merge Sheets data with local state (local wins for edited items)
   useEffect(()=>{
     const rows=data.mttoList||[];
+    if(rows.length===0) return;
     const m={};
     rows.forEach(r=>{ if(r["Unidad"]) m[r["Unidad"]]={estado:r["Estado"]||"",nuevaFecha:r["Nueva Fecha"]||"",comentario:r["Comentario"]||""}; });
-    setMttoEstados(m);
+    setMttoEstados(prev=>{
+      // Keep local changes, merge with sheets
+      const merged={...m};
+      Object.keys(prev).forEach(u=>{ if(prev[u].estado) merged[u]=prev[u]; });
+      return merged;
+    });
   },[data.mttoList]);
+
+  // Persist mttoEstados to localStorage on every change
+  useEffect(()=>{
+    try{localStorage.setItem("nal_mtto_estados_v10",JSON.stringify(mttoEstados));}catch{}
+  },[mttoEstados]);
 
   const guardarGestion=async()=>{
     if(!modalGest) return;
@@ -1284,7 +1344,11 @@ const Mantenimiento=({data,setData})=>{
     setMttoEstados(nuevo);
     setSaving(true);
     const rows=Object.entries(nuevo).map(([u,v])=>({Unidad:u,Estado:v.estado,["Nueva Fecha"]:v.nuevaFecha,Comentario:v.comentario,Fecha:new Date().toISOString().slice(0,10)}));
-    try{ await apiPost("MANTENIMIENTO",rows); }catch(e){ console.error(e); }
+    try{
+      await apiPost("MANTENIMIENTO",rows);
+      // Update local data immediately so it persists across tab changes
+      setData(prev=>({...prev,mttoList:rows}));
+    }catch(e){ console.error(e); }
     setSaving(false);
     setModalGest(null);
   };
@@ -1313,8 +1377,17 @@ const Mantenimiento=({data,setData})=>{
   const prioColor=(p)=>p===1?"#ef4444":p===2?"#f59e0b":p===3?"#3b82f6":"#10b981";
   const prioLabel=(p)=>p===1?"🔴 CRÍTICA":p===2?"🟡 ALTA":p===3?"🔵 MEDIA":"🟢 BAJA";
 
-  const filasEnriquecidas=filas.map(enrichRow);
+  // Separate liberadas from active queue
+  const todasFilas=filas.map(enrichRow);
+  const liberadas=todasFilas.filter(r=>r.estadoGestion==="Liberada");
+  const filasEnriquecidas=todasFilas.filter(r=>r.estadoGestion!=="Liberada");
   const atrasadas=filasEnriquecidas.filter(r=>r.diasAtraso!==null&&r.diasAtraso>0);
+  // All liberadas across CP/RM/SG for the week
+  const todasLiberadas=[
+    ...((grupos.CP||[]).map(enrichRow).filter(r=>r.estadoGestion==="Liberada")),
+    ...((grupos.RM||[]).map(enrichRow).filter(r=>r.estadoGestion==="Liberada")),
+    ...((grupos.SG||[]).map(enrichRow).filter(r=>r.estadoGestion==="Liberada")),
+  ];
 
   return(
     <div style={{display:"flex",flexDirection:"column",gap:12}}>
@@ -1389,7 +1462,20 @@ const Mantenimiento=({data,setData})=>{
         </div>
       )}
 
-      {/* Tabs CP/RM/SG */}
+      {/* Liberadas modal */}
+      {liberadasModal&&<Modal title={`✅ Unidades Liberadas esta semana (${todasLiberadas.length})`} onClose={()=>setLiberadasModal(false)} wide>
+        <div style={{marginBottom:12,color:"#10b981",fontSize:12}}>Unidades que salieron de mantenimiento — guardado en historial</div>
+        <TablaDetalle rows={todasLiberadas} cols={[
+          {k:"unidad",l:"Unidad",col:()=>"#f1f5f9",bold:true,mono:true},
+          {k:"tipo",l:"Tipo",render:r=><Badge text={r.tipo||selTab} small/>},
+          {k:"operador",l:"Operador",mw:140,col:()=>"#94a3b8"},
+          {k:"coordinador",l:"Coord",render:r=><span style={{color:cc(r.coordinador||""),fontWeight:700}}>{(r.coordinador||"").split(" ")[0]}</span>},
+          {k:"nuevaFecha",l:"F.Liberación",col:()=>"#10b981",bold:true},
+          {k:"comentarioGestion",l:"Comentarios",mw:200,col:()=>"#64748b",fs:10},
+        ]}/>
+      </Modal>}
+
+      {/* Tabs CP/RM/SG + Liberadas */}
       <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8}}>
         {CONF.map(c=>(
           <div key={c.k} onClick={()=>setSelTab(c.k)} style={{background:selTab===c.k?c.col+"30":c.col+"15",border:`2px solid ${c.col}${selTab===c.k?"80":"30"}`,borderRadius:10,padding:"12px 8px",cursor:"pointer",textAlign:"center"}}>
@@ -1399,6 +1485,15 @@ const Mantenimiento=({data,setData})=>{
           </div>
         ))}
       </div>
+
+      {/* Liberadas button */}
+      {todasLiberadas.length>0&&(
+        <button onClick={()=>setLiberadasModal(true)}
+          style={{width:"100%",background:"#10b98115",border:"1px solid #10b98140",borderRadius:9,padding:"10px",color:"#10b981",fontSize:12,cursor:"pointer",fontWeight:700,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+          <span>✅ Liberadas esta semana: {todasLiberadas.length} unidades</span>
+          <span>↗ ver historial</span>
+        </button>
+      )}
 
       {/* Vista selector: Tabla | Triage */}
       <div style={{display:"flex",gap:4,borderBottom:"1px solid #0f1e33"}}>
@@ -1565,7 +1660,7 @@ const Cajas=({data,setData})=>{
           <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
             {patiosData.map(p=>(
               <div key={p.patio} onClick={()=>setModalPatio(p)}
-                style={{background:pFil===p.patio?"#1e3a5f":"#0a1628",border:`1px solid ${pFil===p.patio?"#3b82f6":"#1e293b"}`,borderRadius:8,padding:"8px 12px",cursor:"pointer",minWidth:100}}>
+                style={{background:"#0a1628",border:"1px solid #1e293b",borderRadius:8,padding:"8px 12px",cursor:"pointer",minWidth:100}}>
                 <div style={{color:"#3b82f6",fontWeight:900,fontSize:18}}>{p.total}</div>
                 <div style={{color:"#f1f5f9",fontSize:10,fontWeight:700}}>{p.patio}</div>
                 <div style={{color:"#475569",fontSize:9,marginTop:2}}>

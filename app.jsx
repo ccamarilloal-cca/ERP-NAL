@@ -43,7 +43,7 @@ const ec = (e="") => { const s=e.toLowerCase(); if(s.includes("vta")||s.includes
 const Badge = ({text,small}) => <span style={{background:ec(text)+"22",color:ec(text),border:`1px solid ${ec(text)}44`,borderRadius:5,padding:small?"1px 5px":"2px 7px",fontSize:small?9:10,fontWeight:700,letterSpacing:.5,textTransform:"uppercase",whiteSpace:"nowrap"}}>{text}</span>;
 const fmt$ = v => v>=1000000?`$${(v/1000000).toFixed(2)}M`:v>=1000?`$${(v/1000).toFixed(0)}K`:`$${Math.round(v).toLocaleString()}`;
 const pBar = (pct,h=5) => <div style={{height:h,background:"#1e293b",borderRadius:3,overflow:"hidden"}}><div style={{height:"100%",width:`${Math.min(+pct,100)}%`,background:+pct>=100?"#10b981":+pct>=70?"#f59e0b":"#ef4444",borderRadius:3,transition:"width .4s"}}/></div>;
-const toCSV = (rows,cols) => cols.join(",")+"\n"+rows.map(r=>cols.map(c=>`"${r[c]??''}"`).join(",")).join("\n");
+const toCSV = (rows,cols) => cols.join(",")+"\n"+rows.map(r=>cols.map(c=>`"${r[c]||''}"`).join(",")).join("\n");
 const dlCSV = (c,fn) => { const b=new Blob([c],{type:"text/csv;charset=utf-8;"}); const a=document.createElement("a"); a.href=URL.createObjectURL(b); a.download=fn; a.click(); };
 const esOp = m => { const u=String(m||"").toUpperCase(); return u.startsWith("VTA")||u.startsWith("TRN")||u.startsWith("MOV")||u.startsWith("LIB"); };
 const diasDesde = (fechaStr) => { if(!fechaStr||fechaStr==="—") return null; const d=new Date(fechaStr); if(isNaN(d)) return null; return Math.floor((new Date()-d)/86400000); };

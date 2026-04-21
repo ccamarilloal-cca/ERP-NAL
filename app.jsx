@@ -105,6 +105,109 @@ const COLS_UNIDAD=[
   {k:"comentarios",l:"Comentarios",mw:160,col:()=>"#64748b",fs:10},
 ];
 
+// ── CRÍTICOS AHORA — Panel de comando ─────────────────────────────────────────
+const URGENCIA_COLOR={0:"#ef4444",1:"#ef4444",2:"#f97316",3:"#f59e0b",4:"#64748b"};
+const URGENCIA_LABEL={0:"🚨 CRÍTICO",1:"🔴 URGENTE",2:"🟠 ALTO",3:"🟡 MEDIO",4:"⚪ BAJO"};
+
+const calcUrgencia=(alerta,estadoAlertas)=>{
+  const id=`${alerta.tipo}_${alerta.unidad}`.replace(/[\s/]/g,"_");
+  const est=estadoAlertas[id]||{};
+  if(est.estado==="finalizado") return 99;
+  if(alerta.tipo&&alerta.tipo.includes("SG")) return 0;
+  if(alerta.tipo&&alerta.tipo.includes("RM")) return 1;
+  if(alerta.col==="#ef4444") return 1;
+  if(alerta.col==="#f59e0b") return 2;
+  return 3;
+};
+
+const PulseStyle=`
+@keyframes pulse-red{0%,100%{box-shadow:0 0 0 0 rgba(239,68,68,0.4)}50%{box-shadow:0 0 0 6px rgba(239,68,68,0)}}
+@keyframes pulse-orange{0%,100%{box-shadow:0 0 0 0 rgba(249,115,22,0.3)}50%{box-shadow:0 0 0 5px rgba(249,115,22,0)}}
+.pulse-red{animation:pulse-red 2s infinite}
+.pulse-orange{animation:pulse-orange 2.5s infinite}
+`;
+
+const CriticosPanel=({alertas,estadoAlertas,setTab,onAccion})=>{
+  const criticos=alertas
+    .map(a=>({...a,urgencia:calcUrgencia(a,estadoAlertas)}))
+    .filter(a=>a.urgencia<4)
+    .sort((a,b)=>a.urgencia-b.urgencia)
+    .slice(0,5);
+
+  if(criticos.length===0) return(
+    <div style={{background:"#0a1f0a",border:"1px solid #10b98140",borderRadius:11,padding:"12px 16px",marginBottom:12,display:"flex",alignItems:"center",gap:10}}>
+      <span style={{fontSize:20}}>✅</span>
+      <span style={{color:"#10b981",fontWeight:700,fontSize:13}}>Sin críticos activos — Operación normal</span>
+    </div>
+  );
+
+  return(
+    <div style={{background:"#1a0505",border:"2px solid #ef444460",borderRadius:12,padding:14,marginBottom:14}}>
+      <style>{PulseStyle}</style>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+        <div style={{display:"flex",alignItems:"center",gap:8}}>
+          <span style={{fontSize:18}}>🚨</span>
+          <span style={{color:"#ef4444",fontWeight:900,fontSize:14,letterSpacing:.5}}>CRÍTICOS AHORA</span>
+          <span style={{background:"#ef4444",color:"#fff",borderRadius:"50%",width:22,height:22,display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:900}}>{criticos.length}</span>
+        </div>
+        <button onClick={()=>setTab("alertas")}
+          style={{background:"#ef444420",border:"1px solid #ef444440",borderRadius:7,padding:"4px 12px",color:"#ef4444",fontSize:10,cursor:"pointer",fontWeight:700}}>
+          Ver todas →
+        </button>
+      </div>
+      <div style={{display:"flex",flexDirection:"column",gap:6}}>
+        {criticos.map((a,i)=>{
+          const urg=a.urgencia;
+          const col=URGENCIA_COLOR[urg]||"#ef4444";
+          const isPulse=urg<=1;
+          return(
+            <div key={i} className={isPulse?"pulse-red":""}
+              style={{background:"#0d0505",border:`2px solid ${col}60`,borderRadius:9,padding:"10px 12px",
+                display:"flex",justifyContent:"space-between",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{display:"flex",gap:6,alignItems:"center",marginBottom:3,flexWrap:"wrap"}}>
+                  <span style={{background:col+"25",color:col,borderRadius:5,padding:"1px 7px",fontSize:9,fontWeight:900}}>{URGENCIA_LABEL[urg]}</span>
+                  <span style={{color:"#f1f5f9",fontWeight:800,fontFamily:"monospace",fontSize:12}}>🚛 {a.unidad}</span>
+                  <span style={{color:"#64748b",fontSize:9}}>{a.coord}</span>
+                </div>
+                <div style={{color:col,fontSize:11,fontWeight:700}}>
+                  {urg===0?"🚨 RIESGO DE INCUMPLIMIENTO — ":""}
+                  {urg===1?"🔴 ATENCIÓN REQUERIDA — ":""}
+                  {a.desc&&a.desc.slice(0,60)}{a.desc&&a.desc.length>60?"...":""}
+                </div>
+              </div>
+              <div style={{display:"flex",gap:5,flexShrink:0}}>
+                <button onClick={()=>onAccion("ver",a)}
+                  style={{background:"#1e293b",border:"none",borderRadius:6,padding:"5px 10px",color:"#94a3b8",fontSize:10,cursor:"pointer",fontWeight:700}}>
+                  👁 Ver
+                </button>
+                <button onClick={()=>onAccion("resolver",a)}
+                  style={{background:col+"20",border:`1px solid ${col}50`,borderRadius:6,padding:"5px 10px",color:col,fontSize:10,cursor:"pointer",fontWeight:700}}>
+                  ⚡ Actuar
+                </button>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+
+// ── ESCALAMIENTO POR TIEMPO ───────────────────────────────────────────────────
+const escalarPorTiempo=(comentario,fechaStr)=>{
+  if(!fechaStr&&!comentario) return null;
+  const ahora=new Date();
+  const fecha=fechaStr?new Date(fechaStr):null;
+  if(!fecha||isNaN(fecha)) return null;
+  const horas=Math.floor((ahora-fecha)/3600000);
+  if(horas>=6) return{nivel:"CRITICO",col:"#ef4444",label:`🚨 RIESGO INCUMPLIMIENTO — Detenida ${horas}h`,horas};
+  if(horas>=4) return{nivel:"ROJO",col:"#ef4444",label:`🔴 DETENIDA ${horas}h — Requiere acción inmediata`,horas};
+  if(horas>=2) return{nivel:"AMARILLO",col:"#f59e0b",label:`⚠️ Sin movimiento ${horas}h — Verificar`,horas};
+  return null;
+};
+
+
 // ── SYNC BANNER ────────────────────────────────────────────────────────────────
 const SyncBanner=({state,onSync,lastSync,autoInterval,setAutoInterval})=>{
   const cfg={
@@ -138,7 +241,7 @@ const SyncBanner=({state,onSync,lastSync,autoInterval,setAutoInterval})=>{
 };
 
 // ── HEADER RELOJ ────────────────────────────────────────────────────────────────
-const HeaderReloj=({lastSync,autoInterval})=>{
+const HeaderReloj=({lastSync,autoInterval,criticosCount})=>{
   const [ahora,setAhora]=useState(new Date());
   useEffect(()=>{const t=setInterval(()=>setAhora(new Date()),1000);return()=>clearInterval(t);},[]);
   const hora=ahora.toLocaleTimeString("es-MX",{hour:"2-digit",minute:"2-digit",second:"2-digit",hour12:false});
@@ -153,9 +256,16 @@ const HeaderReloj=({lastSync,autoInterval})=>{
         <div style={{fontSize:26,fontWeight:900,color:"#f1f5f9",fontFamily:"monospace",letterSpacing:2,lineHeight:1}}>{hora}</div>
         <div style={{fontSize:9,color:"#475569",marginTop:2,textTransform:"uppercase",letterSpacing:.5}}>{fecha}</div>
       </div>
-      <div style={{display:"flex",gap:6,alignItems:"center"}}>
-        <div style={{width:7,height:7,borderRadius:"50%",background:"#10b981",boxShadow:"0 0 8px #10b981"}}/>
-        <span style={{color:"#10b981",fontSize:9,fontWeight:700}}>OPERATIVO</span>
+      <div style={{display:"flex",gap:8,alignItems:"center"}}>
+        {criticosCount>0&&(
+          <div style={{background:"#ef4444",borderRadius:8,padding:"3px 10px",display:"flex",alignItems:"center",gap:4}}>
+            <span style={{color:"#fff",fontSize:10,fontWeight:900}}>🚨 {criticosCount} CRÍTICO{criticosCount>1?"S":""}</span>
+          </div>
+        )}
+        <div style={{display:"flex",gap:4,alignItems:"center"}}>
+          <div style={{width:7,height:7,borderRadius:"50%",background:criticosCount>0?"#ef4444":"#10b981",boxShadow:`0 0 8px ${criticosCount>0?"#ef4444":"#10b981"}`}}/>
+          <span style={{color:criticosCount>0?"#ef4444":"#10b981",fontSize:9,fontWeight:700}}>{criticosCount>0?"ALERTAS ACTIVAS":"OPERATIVO"}</span>
+        </div>
       </div>
     </div>
   );
@@ -314,6 +424,8 @@ const Inicio=({data,setTab})=>{
   const [urgModal,setUrgModal]=useState(false);
   const [urgInput,setUrgInput]=useState({desc:"",prioridad:"Alta"});
   const [subModal,setSubModal]=useState(null); // {title, rows}
+  const [accionModal,setAccionModal]=useState(null); // {type, alerta}
+  const [modoOperacion,setModoOperacion]=useState(false);
   // Venta por día
   const [ventaDias,setVentaDias]=useState(()=>lsGet(VENTA_DIA_KEY)||{});
   const [editVenta,setEditVenta]=useState(null);
@@ -392,6 +504,16 @@ const Inicio=({data,setTab})=>{
   const cajas=res?.cajas||{};
   const alertasMtto=res?.alertasMtto||[];
 
+  // Build alertas list for CriticosPanel
+  const alertasInicio=[];
+  (entregas.vencidas||[]).forEach(v=>alertasInicio.push({tipo:"Entrega Vencida",icon:"📦",col:"#ef4444",unidad:v.unidad||"",coord:(v.coordinador||"").split(" ")[0],desc:`Cita: ${v.cita||"—"} — Cliente: ${v.cliente||"—"}`,accion:"Contactar cliente"}));
+  (flota.grupos?.SG||[]).forEach(e=>alertasInicio.push({tipo:"SG — Siniestro",icon:"💥",col:"#ef4444",unidad:e.unidad||"",coord:(e.coordinador||"").split(" ")[0],desc:e.comentarios||"Siniestro activo",accion:"Escalar inmediatamente"}));
+  (flota.grupos?.RM||[]).forEach(e=>alertasInicio.push({tipo:"RM — Rep. Mayor",icon:"🔩",col:"#ef4444",unidad:e.unidad||"",coord:(e.coordinador||"").split(" ")[0],desc:e.comentarios||"Reparación mayor",accion:"Verificar tiempo estimado"}));
+  (flota.grupos?.CP||[]).forEach(e=>alertasInicio.push({tipo:"CP — Correctivo",icon:"🔧",col:"#f59e0b",unidad:e.unidad||"",coord:(e.coordinador||"").split(" ")[0],desc:e.comentarios||"En taller",accion:"Verificar fecha compromiso"}));
+  (flota.vacantes?.detalle||[]).filter(u=>String(u.motivo||"").toUpperCase().startsWith("IND")).forEach(u=>alertasInicio.push({tipo:"IND — Indisciplina",icon:"⚠️",col:"#ef4444",unidad:u.unidad||"",coord:"",desc:"Unidad sin operador por indisciplina",accion:"Asignar operador"}));
+  const alertasEstado=lsGet(ALERTAS_LS)||{};
+  const criticosCount=alertasInicio.filter(a=>calcUrgencia(a,alertasEstado)<3).length;
+
   const totalVacantes=(flota.vacantes?.total)||0;
   const totalMtto=(flota.enCP?.total)||0;
   const totalVencidas=entregas.totalVencidas||0;
@@ -460,6 +582,72 @@ const Inicio=({data,setTab})=>{
 
   return(
     <div style={{display:"flex",flexDirection:"column",gap:0}}>
+      {/* Accion modal */}
+      {accionModal&&(
+        <Modal title={`⚡ Acción rápida — ${accionModal.alerta.unidad}`} onClose={()=>setAccionModal(null)}>
+          <div style={{display:"flex",flexDirection:"column",gap:12}}>
+            <div style={{background:"#0d1626",borderRadius:9,padding:"12px 14px"}}>
+              <div style={{color:"#ef4444",fontWeight:700,fontSize:13,marginBottom:4}}>{accionModal.alerta.tipo}</div>
+              <div style={{color:"#94a3b8",fontSize:12}}>{accionModal.alerta.desc}</div>
+              <div style={{color:"#64748b",fontSize:11,marginTop:4}}>Coordinador: {accionModal.alerta.coord||"—"}</div>
+            </div>
+            <div style={{color:"#475569",fontSize:11,fontWeight:700,textTransform:"uppercase"}}>Acciones disponibles:</div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+              <button onClick={()=>{setTab("tractos");setAccionModal(null);}}
+                style={{background:"#1e3a5f",border:"1px solid #3b82f640",borderRadius:9,padding:"12px",color:"#3b82f6",fontWeight:700,cursor:"pointer",fontSize:12}}>
+                🚛 Ver unidad
+              </button>
+              <button onClick={()=>{setTab("mantenimiento");setAccionModal(null);}}
+                style={{background:"#1f1a05",border:"1px solid #f59e0b40",borderRadius:9,padding:"12px",color:"#f59e0b",fontWeight:700,cursor:"pointer",fontSize:12}}>
+                🔧 Ver MTTO
+              </button>
+              <button onClick={()=>{setTab("alertas");setAccionModal(null);}}
+                style={{background:"#1f0505",border:"1px solid #ef444440",borderRadius:9,padding:"12px",color:"#ef4444",fontWeight:700,cursor:"pointer",fontSize:12}}>
+                🔔 Gestionar alerta
+              </button>
+              <button onClick={()=>{setUrgInput({desc:`${accionModal.alerta.unidad}: ${accionModal.alerta.desc}`,prioridad:"Alta"});setAccionModal(null);setUrgModal(true);}}
+                style={{background:"#1f0a1f",border:"1px solid #a855f740",borderRadius:9,padding:"12px",color:"#a855f7",fontWeight:700,cursor:"pointer",fontSize:12}}>
+                🆘 Registrar urgencia
+              </button>
+            </div>
+            <div style={{background:"#080e1c",borderRadius:7,padding:"10px 12px"}}>
+              <div style={{color:"#64748b",fontSize:10,textTransform:"uppercase",marginBottom:4}}>Acción sugerida:</div>
+              <div style={{color:"#f1f5f9",fontSize:12}}>{accionModal.alerta.accion||"Ver detalle y coordinar"}</div>
+            </div>
+          </div>
+        </Modal>
+      )}
+      {/* Modo operación toggle */}
+      {modoOperacion&&(
+        <div style={{position:"fixed",inset:0,background:"#060d1a",zIndex:200,overflowY:"auto",padding:16}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+            <div style={{color:"#ef4444",fontWeight:900,fontSize:16}}>🚨 MODO OPERACIÓN</div>
+            <button onClick={()=>setModoOperacion(false)}
+              style={{background:"#1e293b",border:"none",borderRadius:7,padding:"6px 14px",color:"#94a3b8",cursor:"pointer",fontSize:12}}>
+              ✕ Salir
+            </button>
+          </div>
+          <CriticosPanel alertas={alertasInicio} estadoAlertas={alertasEstado}
+            setTab={setTab} onAccion={(tipo,alerta)=>setAccionModal({tipo,alerta})}/>
+          {alertasInicio.length===0&&<div style={{color:"#10b981",textAlign:"center",padding:40,fontSize:16,fontWeight:700}}>✅ Sin problemas activos</div>}
+          {alertasInicio.map((a,i)=>{
+            const urg=calcUrgencia(a,alertasEstado);
+            const col=URGENCIA_COLOR[urg]||"#64748b";
+            return(
+              <div key={i} style={{background:"#0a1628",border:`2px solid ${col}50`,borderRadius:10,padding:"12px 14px",marginBottom:8,display:"flex",justifyContent:"space-between",alignItems:"center",gap:8}}>
+                <div style={{flex:1}}>
+                  <div style={{color:col,fontWeight:800,fontSize:12}}>{URGENCIA_LABEL[urg]} — 🚛 {a.unidad}</div>
+                  <div style={{color:"#94a3b8",fontSize:11,marginTop:3}}>{a.desc}</div>
+                </div>
+                <button onClick={()=>setAccionModal({tipo:"actuar",alerta:a})}
+                  style={{background:col+"20",border:`1px solid ${col}50`,borderRadius:7,padding:"7px 14px",color:col,fontWeight:700,cursor:"pointer",fontSize:11,flexShrink:0}}>
+                  ⚡ Actuar
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      )}
       {/* Modal urgencias */}
       {urgModal&&(
         <Modal title="🔴 Urgencias del día" onClose={()=>setUrgModal(false)}>
@@ -534,6 +722,33 @@ const Inicio=({data,setTab})=>{
           }
         </Modal>
       )}
+
+      {/* ── CRÍTICOS + MODO OPERACIÓN ── */}
+      {res&&alertasInicio.filter(a=>calcUrgencia(a,alertasEstado)<3).length>0&&(
+        <CriticosPanel alertas={alertasInicio} estadoAlertas={alertasEstado}
+          setTab={setTab} onAccion={(tipo,alerta)=>setAccionModal({tipo,alerta})}/>
+      )}
+
+      {/* Botón modo operación */}
+      <div style={{display:"flex",gap:8,marginBottom:10}}>
+        <button onClick={()=>setModoOperacion(true)}
+          style={{flex:1,background:criticosCount>0?"#1a0505":"#0a1628",
+            border:`2px solid ${criticosCount>0?"#ef444460":"#1e293b"}`,
+            borderRadius:10,padding:"10px 14px",cursor:"pointer",
+            display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+          <div style={{display:"flex",alignItems:"center",gap:8}}>
+            <span style={{fontSize:18}}>🎯</span>
+            <div style={{textAlign:"left"}}>
+              <div style={{color:criticosCount>0?"#ef4444":"#64748b",fontWeight:700,fontSize:12}}>MODO OPERACIÓN</div>
+              <div style={{color:"#334155",fontSize:9}}>Solo problemas activos — acción inmediata</div>
+            </div>
+          </div>
+          {criticosCount>0
+            ?<span style={{background:"#ef4444",color:"#fff",borderRadius:8,padding:"3px 10px",fontSize:10,fontWeight:900}}>{criticosCount} ACTIVOS</span>
+            :<span style={{color:"#334155",fontSize:10}}>0 críticos</span>
+          }
+        </button>
+      </div>
 
       {/* ── BARRA DE DÍAS CON VENTA ── */}
       <div style={{background:"#0a1628",border:"1px solid #1e3a5f",borderRadius:11,padding:14,marginBottom:10}}>
@@ -1050,6 +1265,7 @@ const Alertas=({data,setData})=>{
   const [modalComent,setModalComent]=useState(null);
   const [comentInput,setComentInput]=useState("");
   const [saving,setSaving]=useState(false);
+  const [accionRapida,setAccionRapida]=useState(null);
 
   // Load from localStorage first (instant, offline)
   useEffect(()=>{
@@ -1136,6 +1352,33 @@ const Alertas=({data,setData})=>{
 
   return(
     <div style={{display:"flex",flexDirection:"column",gap:12}}>
+      {/* Accion rapida modal */}
+      {accionRapida&&<Modal title={`⚡ ${accionRapida.a.tipo} — ${accionRapida.a.unidad}`} onClose={()=>setAccionRapida(null)}>
+        <div style={{display:"flex",flexDirection:"column",gap:10}}>
+          <div style={{background:"#0d1626",borderRadius:8,padding:"12px 14px"}}>
+            <div style={{color:"#ef4444",fontWeight:700,fontSize:12,marginBottom:4}}>{accionRapida.a.desc}</div>
+            <div style={{color:"#64748b",fontSize:11}}>Sugerido: {accionRapida.a.accion||"Verificar y coordinar"}</div>
+          </div>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+            {!accionRapida.est.estado&&<button onClick={()=>{guardarEstado(alertas.indexOf(accionRapida.a),accionRapida.a,"seguimiento",accionRapida.est.comentario||"");setAccionRapida(null);}}
+              style={{background:"#f59e0b20",border:"1px solid #f59e0b50",borderRadius:9,padding:"10px",color:"#f59e0b",fontWeight:700,cursor:"pointer",fontSize:12}}>
+              🔄 Marcar en seguimiento
+            </button>}
+            <button onClick={()=>{guardarEstado(alertas.indexOf(accionRapida.a),accionRapida.a,"finalizado",accionRapida.est.comentario||"Resuelto");setAccionRapida(null);}}
+              style={{background:"#10b98120",border:"1px solid #10b98150",borderRadius:9,padding:"10px",color:"#10b981",fontWeight:700,cursor:"pointer",fontSize:12}}>
+              ✅ Marcar resuelto
+            </button>
+            <button onClick={()=>{setModalComent(alertas.indexOf(accionRapida.a));setComentInput(accionRapida.est.comentario||"");setAccionRapida(null);}}
+              style={{background:"#3b82f620",border:"1px solid #3b82f650",borderRadius:9,padding:"10px",color:"#3b82f6",fontWeight:700,cursor:"pointer",fontSize:12}}>
+              💬 Agregar nota
+            </button>
+            <button onClick={()=>setAccionRapida(null)}
+              style={{background:"#1e293b",border:"none",borderRadius:9,padding:"10px",color:"#64748b",cursor:"pointer",fontSize:12}}>
+              ✕ Cerrar
+            </button>
+          </div>
+        </div>
+      </Modal>}
       {modalComent!==null&&(()=>{
         const a=alertas[modalComent]; const id=getId(a); const est=estadoAlertas[id]||{};
         return(<Modal title={`💬 ${a.tipo} · ${a.unidad}`} onClose={()=>setModalComent(null)}>
@@ -1193,7 +1436,15 @@ const Alertas=({data,setData})=>{
                 {est.estado==="finalizado"&&<span style={{color:"#10b981",fontSize:9,fontWeight:700}}>✅ Finalizado</span>}
               </div>
               <div style={{color:"#cbd5e1",fontSize:12,fontWeight:700,marginBottom:2}}>{a.op}</div>
-              <div style={{color:"#475569",fontSize:11,marginBottom:4}}>{a.unidad&&a.unidad!=="—"&&<span>🚛 {a.unidad} </span>}{a.caja&&<span>📦 {a.caja} </span>}— {a.desc}</div>
+              <div style={{fontSize:11,marginBottom:4}}>
+                {a.unidad&&a.unidad!=="—"&&<span style={{color:"#f1f5f9",fontWeight:700,fontFamily:"monospace"}}>🚛 {a.unidad} </span>}
+                {a.caja&&<span style={{color:"#94a3b8"}}>📦 {a.caja} </span>}
+                <span style={{color:col,fontWeight:col==="#ef4444"?700:400}}>
+                  {col==="#ef4444"?"🚨 RIESGO DE INCUMPLIMIENTO — ":""}
+                  {col==="#f97316"?"🔴 ATENCIÓN REQUERIDA — ":""}
+                  {a.desc}
+                </span>
+              </div>
               {est.comentario&&<div style={{background:"#0d1626",borderRadius:6,padding:"5px 10px",fontSize:10,color:"#64748b",marginBottom:4}}>💬 {est.comentario}<span style={{color:"#334155",marginLeft:6,fontSize:8}}>{est.ts?.slice(0,10)}</span></div>}
               <div style={{background:"#0d1626",borderRadius:6,padding:"5px 10px",fontSize:10,color:"#3b82f6"}}>💡 <b>Acción:</b> {a.accion}</div>
             </div>
@@ -1201,6 +1452,8 @@ const Alertas=({data,setData})=>{
               <span style={{color:cc(a.coord||""),fontSize:10,fontWeight:700}}>{a.coord}</span>
               <button onClick={()=>{setModalComent(idx);setComentInput(est.comentario||"");}}
                 style={{background:"#1e3a5f",border:"1px solid #3b82f640",borderRadius:6,padding:"3px 8px",color:"#3b82f6",fontSize:9,cursor:"pointer",fontWeight:700}}>💬 Comentar</button>
+              <button onClick={()=>setAccionRapida({a,id,est})}
+                style={{background:col+"20",border:`1px solid ${col}50`,borderRadius:6,padding:"3px 8px",color:col,fontSize:9,cursor:"pointer",fontWeight:900}}>⚡ Actuar</button>
               {!est.estado&&<button onClick={()=>guardarEstado(idx,a,"seguimiento",est.comentario||"")}
                 style={{background:"#f59e0b20",border:"1px solid #f59e0b50",borderRadius:6,padding:"3px 8px",color:"#f59e0b",fontSize:9,cursor:"pointer",fontWeight:700}}>🔄 Seguimiento</button>}
               {est.estado==="seguimiento"&&<button onClick={()=>guardarEstado(idx,a,"finalizado",est.comentario||"")}
@@ -2222,7 +2475,17 @@ function App(){
 
   return(
     <div style={{minHeight:"100vh",background:"#060d1a",color:"#e2e8f0",fontFamily:"'DM Sans','Segoe UI',sans-serif"}}>
-      <HeaderReloj lastSync={lastSync} autoInterval={autoInterval}/>
+      <HeaderReloj lastSync={lastSync} autoInterval={autoInterval}
+        criticosCount={(()=>{
+          const d=lsGet(ALERTAS_LS)||{};
+          const res=data.resumen;
+          if(!res) return 0;
+          let cnt=0;
+          (res.entregas?.vencidas||[]).forEach(()=>cnt++);
+          (res.flota?.grupos?.SG||[]).forEach(()=>cnt++);
+          (res.flota?.grupos?.RM||[]).forEach(()=>cnt++);
+          return cnt;
+        })()}/>
       {/* Tabs */}
       <div style={{background:"#08111f",borderBottom:"1px solid #0f1e33",display:"flex",overflowX:"auto",padding:"0 14px"}}>
         {APP_TABS.map(t=>(
